@@ -1,0 +1,40 @@
+{
+  "checks": [
+    {
+      "id": "deepdive-ssa-apply-field-manager",
+      "describe": "deep-dive: gateway Deployment carries a server-side Apply field manager after the SSA exercise",
+      "run": "kubectl --context kind-kubeadv-core -n nimbusai get deploy nimbusai-gateway -o jsonpath='{.metadata.managedFields[?(@.operation==\"Apply\")].manager}'",
+      "assert": {
+        "contains": "kubectl"
+      },
+      "weight": 2
+    },
+    {
+      "id": "deepdive-ssa-replicas-reclaimed",
+      "describe": "deep-dive: --force-conflicts apply won the replicas fight \u2014 spec.replicas is back at the manifest value 2",
+      "run": "kubectl --context kind-kubeadv-core -n nimbusai get deploy nimbusai-gateway -o jsonpath='{.spec.replicas}' | tr -d ' \\n'",
+      "assert": {
+        "matches": "^2$"
+      },
+      "weight": 2
+    },
+    {
+      "id": "deepdive-orphan-new-replicaset",
+      "describe": "deep-dive: the ReplicaSet is a NEW object recreated after the orphan-delete \u2014 its creationTimestamp is later than the Deployment's",
+      "run": "echo \"$(kubectl --context kind-kubeadv-core -n nimbusai get deploy nimbusai-gateway -o jsonpath='{.metadata.creationTimestamp}') $(kubectl --context kind-kubeadv-core -n nimbusai get rs -l app.kubernetes.io/name=nimbusai-gateway -o jsonpath='{.items[0].metadata.creationTimestamp}')\" | awk '{ print ($2 > $1) ? \"NEW-RS\" : \"ORIGINAL-RS\" }'",
+      "assert": {
+        "contains": "NEW-RS"
+      },
+      "weight": 2
+    },
+    {
+      "id": "deepdive-controller-manager-lease-held",
+      "describe": "deep-dive: kube-controller-manager leader-election Lease is held by an identity on the control-plane node",
+      "run": "kubectl --context kind-kubeadv-core -n kube-system get lease kube-controller-manager -o jsonpath='{.spec.holderIdentity}'",
+      "assert": {
+        "contains": "kubeadv-core-control-plane"
+      },
+      "weight": 1
+    }
+  ]
+}

@@ -1,0 +1,76 @@
+{
+  "checks": [
+    {
+      "id": "core-internals-cluster-up",
+      "describe": "core-internals profile is up: kind context kind-kubeadv-core answers and the worker node exists",
+      "run": "kubectl --context kind-kubeadv-core get nodes",
+      "assert": {
+        "contains": "kubeadv-core-worker"
+      },
+      "weight": 1
+    },
+    {
+      "id": "gateway-ready-replicas",
+      "describe": "nimbusai-gateway Deployment converged to 4 ready replicas after the scale step",
+      "run": "kubectl --context kind-kubeadv-core -n nimbusai get deploy nimbusai-gateway -o jsonpath='{.status.readyReplicas}'",
+      "assert": {
+        "matches": "^4$"
+      },
+      "weight": 3
+    },
+    {
+      "id": "generation-converged",
+      "describe": "observedGeneration equals generation \u2014 the controller has processed the latest spec revision",
+      "run": "kubectl --context kind-kubeadv-core -n nimbusai get deploy nimbusai-gateway -o jsonpath='{.metadata.generation} {.status.observedGeneration}' | awk '{ print ($1 == $2) ? \"CONVERGED\" : \"LAGGING \" $0 }'",
+      "assert": {
+        "contains": "CONVERGED"
+      },
+      "weight": 2
+    },
+    {
+      "id": "gateway-available-condition",
+      "describe": "Deployment reports condition Available=True for the converged state",
+      "run": "kubectl --context kind-kubeadv-core -n nimbusai get deploy nimbusai-gateway -o jsonpath='{.status.conditions[?(@.type==\"Available\")].status}'",
+      "assert": {
+        "contains": "True"
+      },
+      "weight": 2
+    },
+    {
+      "id": "part-of-nimbusai-labels",
+      "describe": "all gateway Pods carry the app.kubernetes.io/part-of=nimbusai platform label",
+      "run": "kubectl --context kind-kubeadv-core -n nimbusai get pods -l app.kubernetes.io/part-of=nimbusai --field-selector=status.phase=Running --no-headers | wc -l | tr -d ' \\n'",
+      "assert": {
+        "matches": "^4$"
+      },
+      "weight": 1
+    },
+    {
+      "id": "events-show-scaling",
+      "describe": "Deployment controller events record the scale-up of the gateway ReplicaSet",
+      "run": "kubectl --context kind-kubeadv-core -n nimbusai get events --field-selector reason=ScalingReplicaSet -o jsonpath='{.items[*].message}'",
+      "assert": {
+        "contains": "Scaled up replica set"
+      },
+      "weight": 2
+    },
+    {
+      "id": "cordon-left-scheduling-evidence",
+      "describe": "FailedScheduling events prove the replacement Pod was refused while the worker was cordoned",
+      "run": "kubectl --context kind-kubeadv-core -n nimbusai get events --field-selector reason=FailedScheduling -o jsonpath='{.items[*].message}'",
+      "assert": {
+        "contains": "unschedulable"
+      },
+      "weight": 2
+    },
+    {
+      "id": "worker-uncordoned",
+      "describe": "worker node is schedulable again \u2014 spec.unschedulable was cleared by the uncordon",
+      "run": "kubectl --context kind-kubeadv-core get node kubeadv-core-worker -o jsonpath='{.spec.unschedulable}'",
+      "assert": {
+        "absent": "true"
+      },
+      "weight": 1
+    }
+  ]
+}
