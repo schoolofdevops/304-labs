@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Cluster X-Ray — Reconciliation Lens</title>
+<title>Cluster X-Ray</title>
 <style>
   :root{
     --bg:#0d1220; --panel:#151c2e; --panel2:#111827; --line:#26324e; --line2:#1c2740;
@@ -31,6 +31,7 @@
   .tab{font-size:.8rem;padding:3px 10px;border-radius:7px;border:1px solid var(--line);
     color:var(--dim);background:none;white-space:nowrap}
   .tab.active{border-color:var(--accent);color:var(--accent);background:rgba(76,201,240,.08)}
+  .tab[data-lens]{cursor:pointer}
   .tab.stub{opacity:.45;cursor:not-allowed}
   .tab.stub small{color:var(--faint);font-size:.68rem;margin-left:4px}
   #hdrRight{display:flex;align-items:center;gap:10px;margin-left:auto;font-family:var(--mono);font-size:.8rem;color:var(--faint)}
@@ -143,11 +144,85 @@
   @keyframes evin{0%{background:rgba(76,201,240,.12)}100%{background:transparent}}
   #evEmpty{color:var(--faint);font-size:.8rem;font-family:var(--mono)}
 
+  /* ---------- control-plane lens (M2) ---------- */
+  body.lens-cp #main,body.lens-cp #events{display:none}
+  #cpMain{display:none;flex:1 1 auto;min-height:0;
+    grid-template-columns:minmax(340px,1.3fr) minmax(300px,1fr);
+    grid-template-rows:minmax(0,1.3fr) minmax(0,1fr);gap:6px}
+  body.lens-cp #cpMain{display:grid}
+  #cpDiagramPanel{grid-column:1;grid-row:1;display:flex;flex-direction:column;min-height:0}
+  #apfPanel{grid-column:2;grid-row:1 / span 2;display:flex;flex-direction:column;min-height:0}
+  #auditPanel{grid-column:1;grid-row:2;display:flex;flex-direction:column;min-height:0}
+  .panel h2 .soft{letter-spacing:0;text-transform:none;color:var(--line)}
+
+  /* diagram */
+  #cpSvg{flex:1;min-height:0;width:100%}
+  .comp rect{fill:var(--panel2);stroke:var(--line);stroke-width:1.2;transition:stroke .25s,filter .25s}
+  .comp text{fill:var(--txt);font-family:var(--mono);font-size:15px}
+  .comp text.sub{fill:var(--dim);font-size:11px}
+  .comp.pulse rect{stroke:var(--accent);stroke-width:2.2;filter:drop-shadow(0 0 5px rgba(76,201,240,.75))}
+  .edge{stroke:var(--line);stroke-width:1.5;fill:none}
+  .pulseDot{fill:var(--accent);filter:drop-shadow(0 0 4px rgba(76,201,240,.9));pointer-events:none}
+  .elabel{fill:var(--accent);font-family:var(--mono);font-size:11.5px;opacity:0;pointer-events:none}
+  .elabel.show{animation:lblfade 1.7s ease-out}
+  @keyframes lblfade{0%{opacity:1}65%{opacity:.85}100%{opacity:0}}
+  #attrLog{flex:0 0 auto;max-height:7.6rem;overflow-y:auto;font-family:var(--mono);font-size:.75rem;
+    line-height:1.65;color:var(--dim);scrollbar-width:thin;border-top:1px dashed var(--line2);padding-top:4px}
+  #attrLog .alt{color:var(--faint)}
+  #attrLog .acomp{font-weight:700}
+  #attrLog .acomp.cm{color:#a89cf8} #attrLog .acomp.sched{color:var(--warn)}
+  #attrLog .acomp.kubelet{color:var(--ok)} #attrLog .acomp.client{color:var(--accent)}
+  #attrLog .awho{color:var(--faint)}
+
+  /* APF meters */
+  #apfRows{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:7px;scrollbar-width:thin;min-height:0}
+  .apfRow{border:1px solid var(--line2);border-radius:8px;padding:6px 9px;background:var(--panel2);
+    transition:border-color .3s;flex:0 0 auto}
+  .apfRow.hotq{border-color:rgba(245,185,66,.75)}
+  .apfRow.hotr{border-color:rgba(255,107,107,.85)}
+  .apfName{display:flex;align-items:center;font-family:var(--mono);font-size:.84rem;color:var(--txt);margin-bottom:2px}
+  .apfRej{margin-left:auto;font-size:.72rem;font-weight:700;color:var(--bad);opacity:0;transition:opacity .3s}
+  .apfRej.show{opacity:1}
+  .apfRej.bump{animation:rejbump .8s ease-out}
+  @keyframes rejbump{0%{transform:scale(1.4)}100%{transform:scale(1)}}
+  .apfBar{position:relative;height:1.05rem;background:#0a0f1c;border-radius:5px;overflow:hidden;margin-top:3px}
+  .apfBar .fill{position:absolute;top:0;bottom:0;left:0;width:0%;border-radius:5px;transition:width .5s ease}
+  .apfBar.seats .fill{background:linear-gradient(90deg,#1d7fa8,var(--accent))}
+  .apfBar.queue .fill{background:linear-gradient(90deg,#8a6a1d,var(--warn))}
+  .apfBar .btxt{position:absolute;right:6px;top:0;line-height:1.05rem;font-family:var(--mono);font-size:.68rem;color:var(--dim)}
+  #apfMeta{flex:0 0 auto;font-family:var(--mono);font-size:.7rem;color:var(--faint);margin-top:5px}
+
+  /* audit ticker */
+  #auditPanel h2{display:flex;align-items:center;gap:8px}
+  #sysToggle{margin-left:auto;display:flex;align-items:center;gap:4px;font-size:.72rem;color:var(--dim);
+    text-transform:none;letter-spacing:0;font-weight:400;cursor:pointer;white-space:nowrap;font-family:var(--mono)}
+  #auditHint{display:none;border:1px dashed rgba(245,185,66,.5);border-radius:8px;padding:8px 10px;
+    color:var(--warn);font-size:.86rem;background:rgba(245,185,66,.06);line-height:1.55;margin-bottom:5px}
+  #auditHint.show{display:block}
+  #auditHint code{font-family:var(--mono);font-size:.8rem;color:var(--txt);background:rgba(255,255,255,.06);padding:0 4px;border-radius:4px}
+  #auditList{flex:1;overflow-y:auto;font-family:var(--mono);font-size:.76rem;line-height:1.65;scrollbar-width:thin;min-height:0}
+  #auditEmpty{color:var(--faint);font-size:.78rem;font-family:var(--mono)}
+  .au{display:flex;gap:8px;white-space:nowrap;overflow:hidden}
+  .au .at{color:var(--faint);flex:0 0 4.6rem}
+  .au .auser{flex:0 0 11.5rem;overflow:hidden;text-overflow:ellipsis;color:var(--accent)}
+  .au.sys .auser{color:var(--faint)}
+  .au .averb{flex:0 0 4.6rem;color:var(--accent2);font-weight:600}
+  .au .ares{flex:1;overflow:hidden;text-overflow:ellipsis;color:var(--txt);opacity:.9}
+  .au .acode{flex:0 0 2.2rem;text-align:right;color:var(--ok)}
+  .au .acode.warn{color:var(--warn)} .au .acode.bad{color:var(--bad)}
+  .au .alat{flex:0 0 4rem;text-align:right;color:var(--dim)}
+
   @media (max-width:640px){
     body{overflow:auto}
     #main{grid-template-columns:1fr}
     #app{height:auto;min-height:100%}
     .ev .eo{flex-basis:9rem}.ev .er{flex-basis:8.5rem}
+    #cpMain{grid-template-columns:1fr;grid-template-rows:auto auto auto}
+    #cpDiagramPanel{grid-column:1;grid-row:1}
+    #apfPanel{grid-column:1;grid-row:2}
+    #auditPanel{grid-column:1;grid-row:3}
+    #cpSvg{min-height:16rem}
+    #auditList,#apfRows{max-height:18rem}
   }
   @media (prefers-reduced-motion:reduce){
     *{animation:none !important;transition:none !important}
@@ -158,10 +233,10 @@
 <div id="app">
 
   <header>
-    <h1><span class="k8s">⎈</span> Cluster X-Ray <span class="lens">· Reconciliation Lens</span></h1>
+    <h1><span class="k8s">⎈</span> Cluster X-Ray <span class="lens" id="lensName">· Reconciliation Lens</span></h1>
     <nav id="tabs">
-      <span class="tab active">Reconciliation</span>
-      <span class="tab stub" title="API flow &amp; priority-and-fairness lens — unlocks in Module 2">API Flow<small>M2+</small></span>
+      <span class="tab active" data-lens="recon">Reconciliation</span>
+      <span class="tab" data-lens="cp" title="Control-plane lens — attribution, audit stream, API Priority &amp; Fairness (Module 2)">Control Plane</span>
       <span class="tab stub" title="Scheduling lens — unlocks in Module 4">Scheduling<small>M4+</small></span>
       <span class="tab stub" title="Scale lens — unlocks in Module 6">Scale<small>M6+</small></span>
     </nav>
@@ -196,6 +271,58 @@
   <div class="panel" id="events">
     <h2>Events <span>— kubectl get events -w</span> <span class="paused">· paused (hover)</span></h2>
     <div id="evList"><div id="evEmpty">— waiting for events…</div></div>
+  </div>
+
+  <!-- ================= Control-Plane Lens (M2) ================= -->
+  <div id="cpMain">
+    <div class="panel" id="cpDiagramPanel">
+      <h2>Control plane — live request flow <span class="soft">— pulses = attributed writes (managedFields + event.source)</span></h2>
+      <svg id="cpSvg" viewBox="0 0 820 400" preserveAspectRatio="xMidYMid meet" aria-label="control plane diagram">
+        <path id="e-client" class="edge" d="M410,96 L410,158"/>
+        <path id="e-cm" class="edge" d="M220,150 L330,182"/>
+        <path id="e-sched" class="edge" d="M208,292 L330,212"/>
+        <path id="e-kubelet" class="edge" d="M410,316 L410,226"/>
+        <path id="e-etcd" class="edge" d="M490,192 L620,192"/>
+        <g class="comp" id="c-client"><rect x="335" y="44" width="150" height="52" rx="9"/>
+          <text x="410" y="66" text-anchor="middle">you / clients</text>
+          <text class="sub" x="410" y="84" text-anchor="middle">kubectl · CI · operators</text></g>
+        <g class="comp" id="c-api"><rect x="330" y="158" width="160" height="68" rx="9"/>
+          <text x="410" y="186" text-anchor="middle">kube-apiserver</text>
+          <text class="sub" x="410" y="206" text-anchor="middle">authn · authz · admission</text></g>
+        <g class="comp" id="c-etcd"><rect x="620" y="164" width="130" height="56" rx="9"/>
+          <text x="685" y="188" text-anchor="middle">etcd</text>
+          <text class="sub" x="685" y="206" text-anchor="middle">source of truth</text></g>
+        <g class="comp" id="c-cm"><rect x="40" y="96" width="180" height="84" rx="9"/>
+          <text x="130" y="120" text-anchor="middle">controller-manager</text>
+          <text class="sub" x="130" y="142" text-anchor="middle">deployment controller</text>
+          <text class="sub" x="130" y="160" text-anchor="middle">replicaset controller</text></g>
+        <g class="comp" id="c-sched"><rect x="48" y="268" width="160" height="56" rx="9"/>
+          <text x="128" y="292" text-anchor="middle">kube-scheduler</text>
+          <text class="sub" x="128" y="310" text-anchor="middle">binds pods → nodes</text></g>
+        <g class="comp" id="c-kubelet"><rect x="340" y="316" width="140" height="52" rx="9"/>
+          <text x="410" y="338" text-anchor="middle">kubelet</text>
+          <text class="sub" x="410" y="356" text-anchor="middle">node agents</text></g>
+        <text class="elabel" id="lbl-client" x="424" y="132"></text>
+        <text class="elabel" id="lbl-cm" x="234" y="146"></text>
+        <text class="elabel" id="lbl-sched" x="240" y="266"></text>
+        <text class="elabel" id="lbl-kubelet" x="424" y="290"></text>
+        <text class="elabel" id="lbl-etcd" x="498" y="182"></text>
+      </svg>
+      <div id="attrLog"><span style="color:var(--faint)">— attribution log: waiting for watch events…</span></div>
+    </div>
+
+    <div class="panel" id="apfPanel">
+      <h2>API Priority &amp; Fairness <span class="soft">— live /metrics · seats in use / queued / rejected, per priority level</span></h2>
+      <div id="apfRows"><span style="color:var(--faint);font-size:.8rem">— polling /metrics…</span></div>
+      <div id="apfMeta"></div>
+    </div>
+
+    <div class="panel" id="auditPanel">
+      <h2>Audit stream <span class="soft">— every request the API server answered</span>
+        <label id="sysToggle"><input type="checkbox" id="sysCk"> show system: users</label></h2>
+      <div id="auditHint"></div>
+      <div id="auditList"><span id="auditEmpty">— probing for audit mode…</span></div>
+    </div>
   </div>
 </div>
 
@@ -306,23 +433,23 @@ function renderNsSel(){
   var box=$('nsMissing');
   box.classList.toggle('show',missing);
   if(missing)box.innerHTML='Namespace <code>'+S.ns+'</code> not found yet — apply the M1 manifest '+
-    '(Step 3: <code>kubectl apply -f labs/m1/nimbusai-gateway.yaml</code>) and this view lights up on its own. No refresh needed: the watch stream will deliver it.';
+    '(Step 3: <code>kubectl apply -f labs/m1/nimbusai-gateway.yaml</code>) and this view lights up on its own. No refresh needed: the watch streams will deliver it.';
 }
 $('nsSel').addEventListener('change',function(){switchNs(this.value)});
 
-startWatch({
-  key:'namespaces',path:'/api/v1/namespaces',
-  onList:function(items){
-    S.namespaces=items.map(function(n){return n.metadata.name});
+/* Namespaces are POLLED, not watched. Browsers allow only 6 concurrent
+   HTTP/1.1 connections per host — the long-lived streams (nodes, deployments,
+   pods, events watches + the audit log follow) use 5, and the last slot must
+   stay free for transient fetches (/metrics polls, probes). A namespace list
+   every 15s is plenty. */
+function pollNamespaces(){
+  fetch('/api/v1/namespaces?limit=500').then(function(r){return r.json()}).then(function(b){
+    S.namespaces=(b.items||[]).map(function(n){return n.metadata.name});
     renderNsSel();
-  },
-  onEvent:function(type,obj){
-    var n=obj.metadata.name,i=S.namespaces.indexOf(n);
-    if(type==='DELETED'){if(i>-1)S.namespaces.splice(i,1)}
-    else if(i<0)S.namespaces.push(n);
-    renderNsSel();
-  }
-});
+  }).catch(function(){});
+}
+pollNamespaces();
+setInterval(pollNamespaces,15000);
 
 /* ------------------------------------------------------------------ nodes */
 startWatch({
@@ -334,7 +461,7 @@ startWatch({
   },
   onEvent:function(type,obj){
     if(type==='DELETED')delete S.nodes[obj.metadata.name];
-    else S.nodes[obj.metadata.name]=obj;
+    else{S.nodes[obj.metadata.name]=obj;attribute('node',type,obj)}
     renderCluster();
   }
 });
@@ -362,10 +489,13 @@ function startNsWatches(){
     },
     onEvent:function(type,obj){
       if(type==='DELETED')delete S.deploys[obj.metadata.name];
-      else S.deploys[obj.metadata.name]=obj;
+      else{S.deploys[obj.metadata.name]=obj;attribute('deployment',type,obj)}
       renderDeps();
     }
   }));
+  /* NOTE: no replicasets watch — the 6-connections-per-host budget is spent
+     (see pollNamespaces). ReplicaSet writes are attributed via the events
+     stream instead (replicaset-controller SuccessfulCreate/SuccessfulDelete). */
   S.ctls.push(startWatch({
     key:'pods',path:'/api/v1/namespaces/'+ns+'/pods',
     onList:function(items){
@@ -377,7 +507,7 @@ function startNsWatches(){
       if(type==='DELETED'){
         delete S.pods[obj.metadata.name];
         animateOut(obj.metadata.name);
-      }else S.pods[obj.metadata.name]=obj;
+      }else{S.pods[obj.metadata.name]=obj;attribute('pod',type,obj)}
       renderCluster();
     }
   }));
@@ -390,6 +520,7 @@ function startNsWatches(){
     onEvent:function(type,obj){
       if(type==='DELETED')return;
       appendEvent(obj,true);
+      attributeEvent(obj);
     }
   }));
 }
@@ -608,9 +739,306 @@ setInterval(function(){ /* refresh ages */
   });
 },10000);
 
+/* ==================================================================
+   Control-Plane Lens (M2)
+   L1 attribution — managedFields most-recent manager + event.source,
+       from the SAME watch streams the Reconciliation lens uses.
+   L2 audit stream — kube-apiserver pod logs (audit-log-path=-) streamed
+       through the proxy; needs the AUDIT=1 profile.
+   L3 APF meters — /metrics polled through the proxy every 2.5s.
+   ================================================================== */
+var curLens='recon';
+
+/* ---------- L1: attribution + diagram pulses ---------- */
+var pulseWin=0,pulseCount=0;
+function mgrComp(m){
+  m=(m||'').toLowerCase();
+  if(m.indexOf('kube-controller-manager')>-1||/(^|-)(deployment|replicaset|endpoint|node|namespace|cronjob|job|taint|garbage)-?controller/.test(m))return 'cm';
+  if(m.indexOf('scheduler')>-1)return 'sched';
+  if(m.indexOf('kubelet')>-1)return 'kubelet';
+  return 'client';
+}
+function compPulse(id){
+  var el=document.getElementById(id);if(!el)return;
+  el.classList.remove('pulse');void el.getBoundingClientRect();
+  el.classList.add('pulse');
+  setTimeout(function(){el.classList.remove('pulse')},650);
+}
+function edgeDot(edgeId){
+  var p=document.getElementById(edgeId),svg=document.getElementById('cpSvg');
+  if(!p||!svg)return;
+  var len=p.getTotalLength();
+  var c=document.createElementNS('http://www.w3.org/2000/svg','circle');
+  c.setAttribute('r','5');c.setAttribute('class','pulseDot');
+  svg.appendChild(c);
+  var t0=performance.now(),dur=620;
+  requestAnimationFrame(function step(now){
+    var t=Math.min(1,(now-t0)/dur),pt=p.getPointAtLength(t*len);
+    c.setAttribute('cx',pt.x);c.setAttribute('cy',pt.y);
+    if(t<1)requestAnimationFrame(step);else svg.removeChild(c);
+  });
+}
+function edgeLabel(comp,txt){
+  var l=document.getElementById('lbl-'+comp);if(!l)return;
+  l.textContent=txt;
+  l.classList.remove('show');void l.getBoundingClientRect();l.classList.add('show');
+}
+var COMP_NAME={cm:'ctrl-mgr',sched:'scheduler',kubelet:'kubelet',client:'client'};
+var COMP_EDGE={cm:'e-cm',sched:'e-sched',kubelet:'e-kubelet',client:'e-client'};
+function logAttr(comp,label,who){
+  var host=$('attrLog');if(!host)return;
+  if(host.firstChild&&host.firstChild.tagName==='SPAN')host.innerHTML='';
+  var d=document.createElement('div');
+  d.innerHTML='<span class="alt"></span> <span class="acomp"></span> <span class="albl"></span> <span class="awho"></span>';
+  d.children[0].textContent=new Date().toTimeString().slice(0,8);
+  d.children[1].textContent=COMP_NAME[comp]||comp;
+  d.children[1].className='acomp '+comp;
+  d.children[2].textContent=label;
+  d.children[3].textContent=who?'· '+who:'';
+  host.insertBefore(d,host.firstChild);
+  while(host.children.length>8)host.removeChild(host.lastChild);
+}
+function pulseFlow(comp,label,write,who){
+  logAttr(comp,label,who);
+  if(curLens!=='cp')return;
+  var now=Date.now();
+  if(now-pulseWin>900){pulseWin=now;pulseCount=0}
+  if(++pulseCount>7)return;               /* storm guard: keep logging, skip animation */
+  compPulse('c-'+comp);edgeLabel(comp,label);
+  if(COMP_EDGE[comp])edgeDot(COMP_EDGE[comp]);
+  setTimeout(function(){compPulse('c-api')},380);
+  if(write)setTimeout(function(){edgeDot('e-etcd');compPulse('c-etcd')},640);
+}
+function attribute(kind,type,obj){
+  if(type==='DELETED')return;             /* deleter identity is not in managedFields */
+  var mf=(obj.metadata&&obj.metadata.managedFields)||[],best=null;
+  mf.forEach(function(e){if(!best||String(e.time||'')>String(best.time||''))best=e});
+  if(!best)return;
+  var comp=mgrComp(best.manager);
+  var verb=type==='ADDED'?'create':(best.operation==='Apply'?'apply':'update');
+  var sub=best.subresource?'/'+best.subresource:'';
+  pulseFlow(comp,verb+' '+kind+sub,true,best.manager);
+}
+function attributeEvent(e){
+  var src=(e.source&&e.source.component)||e.reportingComponent||'';
+  if(!src)return;
+  var kind=e.involvedObject?(e.involvedObject.kind||'').toLowerCase():'';
+  pulseFlow(mgrComp(src),(e.reason||'event')+' '+kind,true,src);
+}
+
+/* ---------- L2: audit request ticker ---------- */
+var AUD={pod:null,on:null,rows:[],showSys:false,started:false,lastPulse:0};
+function fmtLat(ms){
+  if(!(ms>=0))return '';
+  if(ms<1)return '<1ms';
+  if(ms<1000)return Math.round(ms)+'ms';
+  return (ms/1000).toFixed(2)+'s';
+}
+function auditRowEl(r){
+  var d=document.createElement('div');d.className='au'+(r.sys?' sys':'');
+  d.innerHTML='<span class="at"></span><span class="auser"></span><span class="averb"></span><span class="ares"></span><span class="acode"></span><span class="alat"></span>';
+  d.children[0].textContent=r.t;
+  d.children[1].textContent=r.user;d.children[1].title=r.user+(r.agent?' · '+r.agent:'');
+  d.children[2].textContent=r.verb;
+  d.children[3].textContent=r.res;d.children[3].title=r.res;
+  d.children[4].textContent=r.code;
+  d.children[4].className='acode'+(r.code>=500||r.code===429?' bad':r.code>=400?' warn':'');
+  d.children[5].textContent=r.lat;
+  return d;
+}
+function renderAuditAll(){
+  var list=$('auditList');list.innerHTML='';
+  AUD.rows.filter(function(r){return AUD.showSys||!r.sys}).slice(-200)
+    .forEach(function(r){list.appendChild(auditRowEl(r))});
+  if(!list.children.length)list.innerHTML='<span id="auditEmpty">— audit stream connected, waiting for requests…</span>';
+  list.scrollTop=list.scrollHeight;
+}
+function handleAudit(o){
+  if(o.stage!=='ResponseComplete')return;
+  if(o.objectRef&&o.objectRef.resource==='leases')return;        /* lease renewals: pure noise */
+  var uri=(o.requestURI||'').split('?')[0];
+  if(uri==='/metrics')return;                                    /* this page's own APF polling */
+  var u=(o.user&&o.user.username)||'?',sys=/^system:/.test(u);
+  var recv=Date.parse(o.requestReceivedTimestamp),done=Date.parse(o.stageTimestamp);
+  var or=o.objectRef;
+  var res=or?((or.namespace?or.namespace+'/':'')+(or.resource||'')+(or.subresource?'/'+or.subresource:'')+(or.name?' · '+or.name:'')):uri;
+  var code=(o.responseStatus&&o.responseStatus.code)||0;
+  var r={t:new Date(done).toTimeString().slice(0,8),user:u,sys:sys,verb:o.verb||'',
+         res:res,code:code,lat:fmtLat(done-recv),agent:(o.userAgent||'').split(' ')[0]};
+  AUD.rows.push(r);
+  if(AUD.rows.length>250)AUD.rows.shift();
+  if(AUD.showSys||!sys){
+    var list=$('auditList'),empty=document.getElementById('auditEmpty');
+    if(empty)empty.remove();
+    list.appendChild(auditRowEl(r));
+    while(list.children.length>200)list.removeChild(list.firstChild);
+    list.scrollTop=list.scrollHeight;
+  }
+  /* every answered request pulses the api-server; writes ripple on to etcd */
+  var now=Date.now();
+  if(curLens==='cp'&&now-AUD.lastPulse>150){
+    AUD.lastPulse=now;
+    compPulse('c-api');
+    if(['create','update','patch','delete','deletecollection'].indexOf(r.verb)>-1){
+      edgeDot('e-etcd');compPulse('c-etcd');
+    }
+  }
+}
+function renderAuditState(){
+  var h=$('auditHint');
+  if(AUD.on===false){
+    h.classList.add('show');
+    h.innerHTML='audit mode off — this cluster was created without <code>AUDIT=1</code>. Recreate the profile: '+
+      '<code>bash labs/clusters/core-internals/teardown.sh &amp;&amp; AUDIT=1 bash labs/clusters/core-internals/create.sh</code> '+
+      'then restart serve.sh. L1 attribution and APF meters work either way.';
+    var e=document.getElementById('auditEmpty');
+    if(e)e.textContent='— no audit stream (see hint above)';
+  }else{
+    h.classList.remove('show');
+    var e2=document.getElementById('auditEmpty');
+    if(e2)e2.textContent='— audit stream connected, waiting for requests…';
+  }
+}
+function auditStart(){ /* probe once, then follow */
+  fetch('/api/v1/namespaces/kube-system/pods?labelSelector=component%3Dkube-apiserver&limit=5')
+    .then(function(r){return r.json()})
+    .then(function(j){
+      var items=j.items||[];
+      if(!items.length)throw new Error('no apiserver pod');
+      AUD.pod=items[0].metadata.name;
+      return fetch('/api/v1/namespaces/kube-system/pods/'+AUD.pod+'/log?tailLines=60');
+    })
+    .then(function(r){return r.text()})
+    .then(function(txt){
+      AUD.on=txt.split('\n').some(function(l){
+        l=l.trim();if(l[0]!=='{')return false;
+        try{var o=JSON.parse(l);return o.kind==='Event'&&/^audit\.k8s\.io\//.test(o.apiVersion||'')}
+        catch(e){return false}
+      });
+      renderAuditState();
+      if(AUD.on)auditFollow();
+    })
+    .catch(function(){AUD.on=false;renderAuditState()});
+}
+async function auditFollow(){
+  while(AUD.on){
+    try{
+      var r=await fetch('/api/v1/namespaces/kube-system/pods/'+AUD.pod+'/log?follow=true&tailLines=1');
+      if(!r.ok)throw new Error('log HTTP '+r.status);
+      var rd=r.body.getReader(),dec=new TextDecoder(),buf='';
+      for(;;){
+        var c=await rd.read();
+        if(c.done)break;
+        buf+=dec.decode(c.value,{stream:true});
+        var nl;
+        while((nl=buf.indexOf('\n'))>=0){
+          var line=buf.slice(0,nl).trim();buf=buf.slice(nl+1);
+          if(line[0]!=='{')continue;                 /* klog lines interleave on stderr */
+          try{
+            var o=JSON.parse(line);
+            if(o.kind==='Event'&&/^audit\.k8s\.io\//.test(o.apiVersion||''))handleAudit(o);
+          }catch(e){}
+        }
+      }
+    }catch(e){}
+    await sleep(2000);                               /* stream ended → re-follow */
+  }
+}
+$('sysCk').addEventListener('change',function(){AUD.showSys=this.checked;renderAuditAll()});
+
+/* ---------- L3: APF meters ---------- */
+var APF={base:{},qmax:10,timer:null,polls:0};
+var PL_ORDER=['exempt','system','leader-election','node-high','workload-high','workload-low','global-default','catch-all'];
+function apfStart(){if(APF.timer)return;apfPoll();APF.timer=setInterval(apfPoll,2500)}
+function apfStop(){if(APF.timer){clearInterval(APF.timer);APF.timer=null}}
+function apfPoll(){
+  fetch('/metrics').then(function(r){
+    if(!r.ok)throw new Error('HTTP '+r.status);
+    return r.text();
+  }).then(function(txt){
+    var m={exec:{},q:{},rej:{},nom:{}};
+    var re=/^apiserver_flowcontrol_(current_executing_seats|current_inqueue_requests|rejected_requests_total|nominal_limit_seats)(?:\{([^}]*)\})?\s+([0-9.eE+-]+)/;
+    txt.split('\n').forEach(function(l){
+      if(l.charCodeAt(0)!==97)return;               /* fast path: only 'a…' lines */
+      var mm=re.exec(l);if(!mm)return;
+      var plm=/priority_level="([^"]*)"/.exec(mm[2]||'');
+      var pl=plm?plm[1]:'';if(!pl)return;
+      var key=mm[1]==='current_executing_seats'?'exec':mm[1]==='current_inqueue_requests'?'q'
+             :mm[1]==='rejected_requests_total'?'rej':'nom';
+      m[key][pl]=(m[key][pl]||0)+parseFloat(mm[3]);
+    });
+    APF.polls++;renderApf(m);
+  }).catch(function(){
+    $('apfMeta').textContent='/metrics unreachable — is serve.sh running against your cluster?';
+  });
+}
+function renderApf(m){
+  var host=$('apfRows'),pls={};
+  [m.exec,m.q,m.rej,m.nom].forEach(function(o){Object.keys(o).forEach(function(k){pls[k]=1})});
+  var names=Object.keys(pls).sort(function(a,b){
+    var ia=PL_ORDER.indexOf(a),ib=PL_ORDER.indexOf(b);
+    ia=ia<0?99:ia;ib=ib<0?99:ib;
+    return ia-ib||(a<b?-1:1);
+  });
+  if(host.firstChild&&host.firstChild.tagName==='SPAN')host.innerHTML='';
+  names.forEach(function(pl){
+    var id='apf-'+pl.replace(/[^a-zA-Z0-9-]/g,'_'),el=document.getElementById(id);
+    if(!el){
+      el=document.createElement('div');el.className='apfRow';el.id=id;el.dataset.pl=pl;
+      el.innerHTML='<div class="apfName"><span class="pl"></span><span class="apfRej"></span></div>'+
+        '<div class="apfBar seats"><div class="fill"></div><span class="btxt"></span></div>'+
+        '<div class="apfBar queue"><div class="fill"></div><span class="btxt"></span></div>';
+      el.querySelector('.pl').textContent=pl;
+      host.appendChild(el);
+    }
+    host.appendChild(el);                            /* keep sort order */
+    var ex=m.exec[pl]||0,q=m.q[pl]||0,rej=m.rej[pl]||0,nom=m.nom[pl]||0;
+    if(!(pl in APF.base))APF.base[pl]=rej;
+    var drej=rej-APF.base[pl];
+    el.querySelector('.seats .fill').style.width=(nom>0?Math.min(100,ex/nom*100):Math.min(100,ex*10))+'%';
+    el.querySelector('.seats .btxt').textContent='seats '+ex+(nom?' / '+nom:'');
+    if(q>APF.qmax)APF.qmax=q;
+    el.querySelector('.queue .fill').style.width=Math.min(100,q/APF.qmax*100)+'%';
+    el.querySelector('.queue .btxt').textContent='queued '+q;
+    el.classList.toggle('hotq',q>0);
+    var rj=el.querySelector('.apfRej'),prev=+(el.dataset.rej||0);
+    rj.textContent=drej>0?'rejected +'+drej:'';
+    rj.classList.toggle('show',drej>0);
+    if(drej>prev){
+      rj.classList.remove('bump');void rj.offsetWidth;rj.classList.add('bump');
+      el.classList.add('hotr');setTimeout(function(){el.classList.remove('hotr')},1500);
+    }
+    el.dataset.rej=drej;
+  });
+  $('apfMeta').textContent='polling /metrics every 2.5s · poll #'+APF.polls+' · queue bar full = '+APF.qmax+' queued';
+}
+
+/* ---------- lens switching ---------- */
+function setLens(l){
+  if(l===curLens)return;
+  curLens=l;
+  document.body.className=l==='cp'?'lens-cp':'';
+  Array.prototype.slice.call(document.querySelectorAll('#tabs .tab[data-lens]')).forEach(function(t){
+    t.classList.toggle('active',t.dataset.lens===l);
+  });
+  $('lensName').textContent=l==='cp'?'· Control-Plane Lens':'· Reconciliation Lens';
+  $('barHint').innerHTML=l==='cp'
+    ?'The control plane itself, live: <code>managedFields</code> attribution pulses, the API server audit stream, and <code>/metrics</code> APF gauges — all same-origin through kubectl proxy.'
+    :'Live view of your REAL cluster — every panel below is fed by raw <code>watch</code> streams from the API server, the same firehose every controller drinks from.';
+  if(l==='cp'){
+    if(!AUD.started){AUD.started=true;auditStart()}
+    apfStart();
+  }else apfStop();
+}
+$('tabs').addEventListener('click',function(e){
+  var t=e.target.closest('.tab');
+  if(t&&t.dataset.lens)setLens(t.dataset.lens);
+});
+
 /* ------------------------------------------------------------------ boot */
 renderNsSel();
 startNsWatches();
+window.__xray={S:S,AUD:AUD,APF:APF,setLens:setLens};   /* test hook */
 })();
 </script>
 </body>

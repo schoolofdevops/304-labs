@@ -28,4 +28,14 @@ fi
 
 kubectl --context "${CTX}" get --raw='/readyz' >/dev/null
 echo "OK: core-internals profile verified — 2/2 nodes Ready, API server healthy."
+
+if kubectl --context "${CTX}" -n kube-system get pod \
+     "kube-apiserver-${CLUSTER_NAME}-control-plane" \
+     -o jsonpath='{.spec.containers[0].command}' 2>/dev/null \
+     | grep -q 'audit-policy-file'; then
+  echo "audit mode: ENABLED — stream with: kubectl logs -n kube-system kube-apiserver-${CLUSTER_NAME}-control-plane"
+else
+  echo "audit mode: off — this cluster predates the audit default; recreate once: bash teardown.sh && bash create.sh"
+fi
+
 kubectl --context "${CTX}" get nodes

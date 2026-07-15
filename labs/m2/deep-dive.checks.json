@@ -1,0 +1,40 @@
+{
+  "checks": [
+    {
+      "id": "chunked-list-returns-continue-token",
+      "describe": "a raw LIST with limit=1 against kube-system ConfigMaps returns a non-empty continue token",
+      "run": "kubectl --context kind-kubeadv-core get --raw \"/api/v1/namespaces/kube-system/configmaps?limit=1\"",
+      "assert": {
+        "matches": "\"continue\":\"[A-Za-z0-9_-]"
+      },
+      "weight": 2
+    },
+    {
+      "id": "continue-token-roundtrip",
+      "describe": "spending the continue token fetches a second page (a ConfigMapList, not a 400 Status)",
+      "run": "CONT=$(kubectl --context kind-kubeadv-core get --raw \"/api/v1/namespaces/kube-system/configmaps?limit=1\" | grep -o '\"continue\":\"[^\"]*\"' | cut -d'\"' -f4); kubectl --context kind-kubeadv-core get --raw \"/api/v1/namespaces/kube-system/configmaps?limit=1&continue=${CONT}\"",
+      "assert": {
+        "contains": "ConfigMapList"
+      },
+      "weight": 2
+    },
+    {
+      "id": "apf-dump-priority-levels-live",
+      "describe": "the APF debug endpoint answers with the default priority level names",
+      "run": "kubectl --context kind-kubeadv-core get --raw /debug/api_priority_and_fairness/dump_priority_levels",
+      "assert": {
+        "contains": "workload-low"
+      },
+      "weight": 2
+    },
+    {
+      "id": "bounded-watch-receives-bookmark",
+      "describe": "a bounded raw watch with allowWatchBookmarks=true receives a BOOKMARK event before the server closes it",
+      "run": "RV=$(kubectl --context kind-kubeadv-core get configmaps -n default -o jsonpath='{.metadata.resourceVersion}'); kubectl --context kind-kubeadv-core get --raw \"/api/v1/namespaces/default/configmaps?watch=1&allowWatchBookmarks=true&resourceVersion=${RV}&timeoutSeconds=10\"",
+      "assert": {
+        "contains": "BOOKMARK"
+      },
+      "weight": 2
+    }
+  ]
+}

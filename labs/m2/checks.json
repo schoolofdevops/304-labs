@@ -1,0 +1,76 @@
+{
+  "checks": [
+    {
+      "id": "core-internals-cluster-up",
+      "describe": "core-internals profile is up: kind context kind-kubeadv-core answers and the worker node exists",
+      "run": "kubectl --context kind-kubeadv-core get nodes",
+      "assert": {
+        "contains": "kubeadv-core-worker"
+      },
+      "weight": 1
+    },
+    {
+      "id": "audit-mode-active",
+      "describe": "API server is emitting audit events to stdout — the AUDIT=1 profile flag took effect",
+      "run": "kubectl --context kind-kubeadv-core -n kube-system logs kube-apiserver-kubeadv-core-control-plane --tail=2000 | grep audit.k8s.io/v1 | head -1",
+      "assert": {
+        "contains": "audit.k8s.io/v1"
+      },
+      "weight": 2
+    },
+    {
+      "id": "configmaps-seeded",
+      "describe": "bounded object set seeded: 300 (8 GB) or 600 (16 GB) module=m2 ConfigMaps in the apiload namespace",
+      "run": "kubectl --context kind-kubeadv-core -n apiload get configmaps -l module=m2 --no-headers | wc -l | tr -d ' \\n'",
+      "assert": {
+        "matches": "^(300|600)$"
+      },
+      "weight": 3
+    },
+    {
+      "id": "flowschema-targets-critical-pl",
+      "describe": "FlowSchema nimbusai-critical exists and routes to the nimbusai-critical priority level",
+      "run": "kubectl --context kind-kubeadv-core get flowschema nimbusai-critical -o jsonpath='{.spec.priorityLevelConfiguration.name}'",
+      "assert": {
+        "matches": "^nimbusai-critical$"
+      },
+      "weight": 3
+    },
+    {
+      "id": "prioritylevel-limited-queuing",
+      "describe": "PriorityLevelConfiguration nimbusai-critical exists as a Limited level that queues (not rejects) overflow",
+      "run": "kubectl --context kind-kubeadv-core get prioritylevelconfiguration nimbusai-critical -o jsonpath='{.spec.type} {.spec.limited.limitResponse.type}'",
+      "assert": {
+        "contains": "Limited Queue"
+      },
+      "weight": 2
+    },
+    {
+      "id": "critical-sa-exists",
+      "describe": "the protected ServiceAccount nimbusai-critical exists in the nimbusai namespace",
+      "run": "kubectl --context kind-kubeadv-core -n nimbusai get serviceaccount nimbusai-critical -o jsonpath='{.metadata.name}'",
+      "assert": {
+        "matches": "^nimbusai-critical$"
+      },
+      "weight": 1
+    },
+    {
+      "id": "apf-metrics-observable",
+      "describe": "APF dispatch counters are exposed and the storm's global-default traffic is visible in /metrics",
+      "run": "kubectl --context kind-kubeadv-core get --raw /metrics | grep apiserver_flowcontrol_dispatched_requests_total | grep global-default | head -1",
+      "assert": {
+        "contains": "priority_level=\"global-default\""
+      },
+      "weight": 2
+    },
+    {
+      "id": "critical-flowschema-saw-traffic",
+      "describe": "the nimbusai-critical FlowSchema actually classified requests — its dispatch counter exists",
+      "run": "kubectl --context kind-kubeadv-core get --raw /metrics | grep apiserver_flowcontrol_dispatched_requests_total | grep nimbusai-critical | head -1",
+      "assert": {
+        "contains": "flow_schema=\"nimbusai-critical\""
+      },
+      "weight": 3
+    }
+  ]
+}

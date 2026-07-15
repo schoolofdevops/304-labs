@@ -1,0 +1,57 @@
+# M2 — protect a critical ServiceAccount's API traffic with its own APF ward.
+#
+# PriorityLevelConfiguration 'nimbusai-critical' reserves dedicated seats
+# (concurrency) and queues, so traffic classified into it cannot be starved by
+# a noisy flow in another priority level (e.g. an operator stuck in a LIST loop).
+#
+# FlowSchema 'nimbusai-critical' classifies requests from the
+# nimbusai/nimbusai-critical ServiceAccount into that priority level.
+# matchingPrecedence 800 beats the built-in 'service-accounts' FlowSchema
+# (precedence 9000) — lower number wins.
+apiVersion: flowcontrol.apiserver.k8s.io/v1
+kind: PriorityLevelConfiguration
+metadata:
+  name: nimbusai-critical
+  labels:
+    course: 304-kubeadv
+    module: m2
+spec:
+  type: Limited
+  limited:
+    # Share of the server's total concurrency budget reserved for this level.
+    nominalConcurrencyShares: 30
+    # Keep the reserved seats for this level even when idle — this ward exists
+    # to be free during an incident, not to be lent out.
+    lendablePercent: 0
+    limitResponse:
+      type: Queue
+      queuing:
+        queues: 16
+        handSize: 4
+        queueLengthLimit: 50
+---
+apiVersion: flowcontrol.apiserver.k8s.io/v1
+kind: FlowSchema
+metadata:
+  name: nimbusai-critical
+  labels:
+    course: 304-kubeadv
+    module: m2
+spec:
+  priorityLevelConfiguration:
+    name: nimbusai-critical
+  matchingPrecedence: 800
+  distinguisherMethod:
+    type: ByUser
+  rules:
+    - subjects:
+        - kind: ServiceAccount
+          serviceAccount:
+            name: nimbusai-critical
+            namespace: nimbusai
+      resourceRules:
+        - verbs: ["*"]
+          apiGroups: ["*"]
+          resources: ["*"]
+          clusterScope: true
+          namespaces: ["*"]

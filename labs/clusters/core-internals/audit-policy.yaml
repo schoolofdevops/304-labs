@@ -1,0 +1,21 @@
+apiVersion: audit.k8s.io/v1
+kind: Policy
+# core-internals audit policy — tuned for lab signal-to-noise.
+# Request level (request bodies captured) only for the resources the M2 lab
+# inspects; Metadata (who/what/when/result, no bodies) for everything else.
+omitStages:
+  - RequestReceived
+rules:
+  # APF objects the lab creates and edits — capture the full request body
+  - level: Request
+    resources:
+      - group: flowcontrol.apiserver.k8s.io
+        resources: ["flowschemas", "prioritylevelconfigurations"]
+  # The course workload — capture bodies for deployment writes in nimbusai
+  - level: Request
+    namespaces: ["nimbusai"]
+    resources:
+      - group: apps
+        resources: ["deployments"]
+  # Everything else: who did what, when, from where — no bodies
+  - level: Metadata
