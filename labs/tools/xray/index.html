@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cluster X-Ray — Reconciliation Lens</title>
+<style>
+  :root{
+    --bg:#0d1220; --panel:#151c2e; --panel2:#111827; --line:#26324e; --line2:#1c2740;
+    --txt:#dbe4f5; --dim:#8494b3; --faint:#5a6a8c;
+    --accent:#4cc9f0; --accent2:#7b6cf6;
+    --ok:#3ddc97; --warn:#f5b942; --bad:#ff6b6b; --pend:#f5b942; --creat:#4cc9f0; --gray:#8494b3;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{font-size:clamp(10.5px,0.4vw + 9.1px,16px)}
+  html,body{height:100%}
+  body{
+    background:var(--bg); color:var(--txt);
+    font:1rem/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    overflow:hidden;
+  }
+  #app{display:flex;flex-direction:column;height:100%;padding:8px 10px;gap:6px}
+
+  /* ---------- header ---------- */
+  header{display:flex;align-items:center;gap:12px;flex:0 0 auto;flex-wrap:wrap}
+  header h1{font-size:1.05rem;font-weight:650;letter-spacing:.2px;white-space:nowrap}
+  header h1 .k8s{color:var(--accent)}
+  header h1 .lens{color:var(--accent2);font-weight:600}
+  #tabs{display:flex;gap:4px}
+  .tab{font-size:.8rem;padding:3px 10px;border-radius:7px;border:1px solid var(--line);
+    color:var(--dim);background:none;white-space:nowrap}
+  .tab.active{border-color:var(--accent);color:var(--accent);background:rgba(76,201,240,.08)}
+  .tab.stub{opacity:.45;cursor:not-allowed}
+  .tab.stub small{color:var(--faint);font-size:.68rem;margin-left:4px}
+  #hdrRight{display:flex;align-items:center;gap:10px;margin-left:auto;font-family:var(--mono);font-size:.8rem;color:var(--faint)}
+  #watchInd{display:flex;align-items:center;gap:6px;padding:2px 9px;border-radius:9px;border:1px solid var(--line)}
+  #watchInd .wdot{width:.55rem;height:.55rem;border-radius:50%;background:var(--faint)}
+  #watchInd.connected .wdot{background:var(--ok)}
+  #watchInd.connected{color:var(--ok);border-color:rgba(61,220,151,.4)}
+  #watchInd.resync .wdot{background:var(--warn);animation:blink .8s infinite}
+  #watchInd.resync{color:var(--warn);border-color:rgba(245,185,66,.4)}
+  @keyframes blink{50%{opacity:.3}}
+  #verInfo{white-space:nowrap}
+
+  /* ---------- toolbar ---------- */
+  #bar{flex:0 0 auto;display:flex;align-items:center;gap:10px;
+    background:linear-gradient(90deg,rgba(123,108,246,.14),rgba(76,201,240,.07));
+    border:1px solid #3a3f6e;border-radius:8px;padding:4px 11px;min-height:32px}
+  #bar .tag{font-size:.8rem;font-weight:700;letter-spacing:.8px;color:var(--accent2);
+    text-transform:uppercase;white-space:nowrap}
+  #nsSel{font-family:var(--mono);font-size:.88rem;background:var(--panel2);color:var(--txt);
+    border:1px solid var(--line);border-radius:6px;padding:3px 8px;min-width:11rem}
+  #barHint{flex:1;color:var(--dim);font-size:.86rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  #barHint code{font-family:var(--mono);font-size:.84rem;color:var(--accent);background:rgba(76,201,240,.08);padding:0 4px;border-radius:4px}
+
+  /* ---------- main grid ---------- */
+  #main{flex:1 1 auto;display:grid;grid-template-columns:clamp(250px,22rem,360px) 1fr;gap:6px;min-height:0}
+  .panel{background:var(--panel);border:1px solid var(--line2);border-radius:10px;padding:7px 10px;min-height:0}
+  .panel h2{font-size:.76rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--faint);margin-bottom:5px}
+
+  #left{display:flex;flex-direction:column;gap:6px;min-height:0;overflow-y:auto;scrollbar-width:thin}
+  .depCard{flex:0 0 auto}
+  .depCard h2{display:flex;align-items:baseline;gap:6px}
+  .depCard h2 .dname{color:var(--accent);text-transform:none;letter-spacing:0;font-family:var(--mono);font-size:.88rem;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
+  .depCard h2 .rv{color:var(--faint);text-transform:none;letter-spacing:0;font-family:var(--mono);font-size:.68rem;font-weight:400;white-space:nowrap}
+  .row{display:flex;justify-content:space-between;align-items:center;padding:2px 0;border-bottom:1px dashed var(--line2)}
+  .row:last-child{border-bottom:none}
+  .row>span:last-child{display:flex;align-items:center;white-space:nowrap}
+  .row .lbl{color:var(--dim);font-family:var(--mono);font-size:.84rem}
+  .row .val{font-family:var(--mono);font-size:.92rem;font-weight:600;padding:1px 7px;border-radius:5px;transition:background .3s}
+  .row .val.flash{animation:flash 1.1s ease-out}
+  @keyframes flash{0%{background:rgba(245,185,66,.55)}100%{background:transparent}}
+  .row .val.flash-ok{animation:flashok 1.1s ease-out}
+  @keyframes flashok{0%{background:rgba(61,220,151,.5)}100%{background:transparent}}
+  .val.true{color:var(--ok)} .val.false{color:var(--bad)}
+  .pill{display:inline-block;font-size:.72rem;font-weight:700;letter-spacing:.4px;border-radius:8px;
+    padding:1px 6px;margin-left:6px;opacity:0;transition:opacity .3s;vertical-align:1px}
+  .pill.show{opacity:1}
+  .pill.lag{background:rgba(245,185,66,.14);color:var(--warn);border:1px solid rgba(245,185,66,.4)}
+  #noDeps{color:var(--faint);font-size:.86rem;padding:8px 2px;line-height:1.5}
+  #noDeps code{font-family:var(--mono);color:var(--accent);font-size:.8rem}
+
+  /* empty-state banner */
+  #nsMissing{display:none;border:1px dashed rgba(245,185,66,.5);border-radius:9px;padding:10px 12px;
+    color:var(--warn);font-size:.9rem;line-height:1.5;background:rgba(245,185,66,.06)}
+  #nsMissing.show{display:block}
+  #nsMissing code{font-family:var(--mono);font-size:.84rem;color:var(--txt);background:rgba(255,255,255,.06);padding:0 4px;border-radius:4px}
+
+  /* cluster panel */
+  #cluster{display:flex;flex-direction:column;min-height:0}
+  #nodes{flex:1;display:flex;flex-direction:column;gap:6px;min-height:0;overflow-y:auto;scrollbar-width:thin}
+  .node{border:1px solid var(--line);border-radius:9px;background:var(--panel2);padding:7px 8px;flex:0 0 auto}
+  .node.cordoned{border-color:rgba(245,185,66,.55)}
+  .node .nname{font-family:var(--mono);font-size:.84rem;color:var(--dim);display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+  .node .nname b{color:var(--txt);font-weight:600}
+  .badge{font-size:.68rem;font-weight:700;letter-spacing:.3px;padding:1px 5px;border-radius:6px;white-space:nowrap}
+  .badge.taint{background:rgba(123,108,246,.15);color:#a89cf8;border:1px solid rgba(123,108,246,.45)}
+  .badge.cordon{background:rgba(245,185,66,.14);color:var(--warn);border:1px solid rgba(245,185,66,.5)}
+  .badge.notready{background:rgba(255,107,107,.14);color:var(--bad);border:1px solid rgba(255,107,107,.5)}
+  .nver{margin-left:auto;font-family:var(--mono);font-size:.7rem;color:var(--faint)}
+  .podArea{margin-top:6px;display:flex;flex-wrap:wrap;gap:6px;align-content:flex-start;min-height:1.9rem}
+  .podArea .noPods{font-size:.76rem;color:var(--faint)}
+  #tray{border:1.5px dashed var(--line);border-radius:9px;padding:5px 8px;
+    min-height:3rem;display:flex;align-items:center;gap:6px;flex-wrap:wrap;transition:border-color .3s;flex:0 0 auto}
+  #tray .tlbl{font-size:.76rem;color:var(--faint);letter-spacing:.5px;text-transform:uppercase;font-weight:700;margin-right:2px}
+  #tray.hot{border-color:var(--warn)}
+  #tray.hot .tlbl{color:var(--warn)}
+  #trayEmpty{font-size:.8rem;color:var(--faint)}
+
+  /* pod chips */
+  .pod{display:flex;align-items:center;gap:5px;font-family:var(--mono);font-size:.8rem;
+    border-radius:7px;padding:4px 8px;border:1px solid var(--line);background:#0e1526;
+    animation:pop .35s cubic-bezier(.2,1.6,.4,1);transition:opacity .5s,transform .5s,border-color .4s;cursor:default}
+  @keyframes pop{0%{transform:scale(.5);opacity:0}100%{transform:scale(1);opacity:1}}
+  .pod .dotp{width:.55rem;height:.55rem;border-radius:50%;flex:0 0 auto;background:var(--gray)}
+  .pod.Pending{border-color:rgba(245,185,66,.5)} .pod.Pending .dotp{background:var(--pend);animation:blink 1s infinite}
+  .pod.Creating{border-color:rgba(76,201,240,.5)} .pod.Creating .dotp{background:var(--creat);animation:blink .6s infinite}
+  .pod.Running{border-color:rgba(61,220,151,.55)} .pod.Running .dotp{background:var(--ok)}
+  .pod.Failed{border-color:rgba(255,107,107,.6)} .pod.Failed .dotp{background:var(--bad)}
+  .pod.Succeeded{border-color:rgba(123,108,246,.5)} .pod.Succeeded .dotp{background:var(--accent2)}
+  .pod.Terminating{border-color:rgba(132,148,179,.5);opacity:.45;transform:scale(.92)} .pod.Terminating .dotp{background:var(--gray)}
+  .pod.gone{opacity:0;transform:scale(.7)}
+  .pod .ph{color:var(--faint);font-size:.68rem}
+  .pod.Pending .ph{color:var(--pend)} .pod.Creating .ph{color:var(--creat)}
+  .pod.Running .ph{color:var(--ok)} .pod.Terminating .ph{color:var(--gray)} .pod.Failed .ph{color:var(--bad)}
+  .pod .rst{color:var(--warn);font-size:.68rem}
+
+  /* event log */
+  #events{flex:0 0 clamp(110px,9.5rem,160px);display:flex;flex-direction:column;min-height:0}
+  #events h2 span{letter-spacing:0;text-transform:none;color:var(--line)}
+  #events h2 .paused{color:var(--warn);display:none}
+  #events.hover h2 .paused{display:inline}
+  #evList{flex:1;overflow-y:auto;font-family:var(--mono);font-size:.8rem;line-height:1.7;scrollbar-width:thin}
+  .ev{display:flex;gap:8px;white-space:nowrap;overflow:hidden}
+  .ev .et{color:var(--faint);flex:0 0 3.2rem}
+  .ev .er{flex:0 0 11rem;overflow:hidden;text-overflow:ellipsis;color:var(--ok)}
+  .ev.warn .er{color:var(--warn)}
+  .ev .eo{flex:0 0 16rem;color:var(--dim);overflow:hidden;text-overflow:ellipsis}
+  .ev .em{flex:1;color:var(--txt);opacity:.85;overflow:hidden;text-overflow:ellipsis}
+  .ev.new{animation:evin .4s ease-out}
+  @keyframes evin{0%{background:rgba(76,201,240,.12)}100%{background:transparent}}
+  #evEmpty{color:var(--faint);font-size:.8rem;font-family:var(--mono)}
+
+  @media (max-width:640px){
+    body{overflow:auto}
+    #main{grid-template-columns:1fr}
+    #app{height:auto;min-height:100%}
+    .ev .eo{flex-basis:9rem}.ev .er{flex-basis:8.5rem}
+  }
+  @media (prefers-reduced-motion:reduce){
+    *{animation:none !important;transition:none !important}
+  }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <header>
+    <h1><span class="k8s">⎈</span> Cluster X-Ray <span class="lens">· Reconciliation Lens</span></h1>
+    <nav id="tabs">
+      <span class="tab active">Reconciliation</span>
+      <span class="tab stub" title="API flow &amp; priority-and-fairness lens — unlocks in Module 2">API Flow<small>M2+</small></span>
+      <span class="tab stub" title="Scheduling lens — unlocks in Module 4">Scheduling<small>M4+</small></span>
+      <span class="tab stub" title="Scale lens — unlocks in Module 6">Scale<small>M6+</small></span>
+    </nav>
+    <div id="hdrRight">
+      <span id="verInfo">connecting…</span>
+      <span id="watchInd"><span class="wdot"></span><span id="watchTxt">watch: connecting</span></span>
+    </div>
+  </header>
+
+  <div id="bar">
+    <span class="tag">Namespace</span>
+    <select id="nsSel" aria-label="namespace"></select>
+    <span id="barHint">Live view of your REAL cluster — every panel below is fed by raw <code>watch</code> streams from the API server, the same firehose every controller drinks from.</span>
+  </div>
+
+  <div id="main">
+    <div id="left">
+      <div id="nsMissing"></div>
+      <div id="depCards"></div>
+      <div class="panel" id="noDepsPanel" style="display:none">
+        <h2>Deployments</h2>
+        <div id="noDeps">No Deployments in this namespace yet — the moment one appears on the watch stream, a card lights up here.</div>
+      </div>
+    </div>
+
+    <div class="panel" id="cluster">
+      <h2>Cluster · nodes &amp; pods <span style="letter-spacing:0;text-transform:none;color:var(--line)">— grouped by node</span></h2>
+      <div id="nodes"></div>
+    </div>
+  </div>
+
+  <div class="panel" id="events">
+    <h2>Events <span>— kubectl get events -w</span> <span class="paused">· paused (hover)</span></h2>
+    <div id="evList"><div id="evEmpty">— waiting for events…</div></div>
+  </div>
+</div>
+
+<script>
+(function(){
+'use strict';
+var $=function(id){return document.getElementById(id)};
+var DEFAULT_NS='nimbusai';
+
+/* ------------------------------------------------------------------ state */
+var S={
+  ns:DEFAULT_NS,
+  namespaces:[],          // names
+  deploys:{},             // name -> object
+  pods:{},                // name -> object
+  nodes:{},               // name -> object
+  streams:{},             // key -> 'sync'|'connected'|'resync'
+  ctls:[],                // active namespaced watch controllers
+  evHover:false
+};
+var prevDep={};           // name -> {spec,gen,obs,ready,avail} for flash diffing
+
+/* ------------------------------------------------------------------ watch machinery
+   This is the lesson itself, visible: LIST to get a resourceVersion, then WATCH
+   from that version; reconnect on stream end; on 410 Gone, re-LIST. */
+function sleep(ms){return new Promise(function(r){setTimeout(r,ms)})}
+function setStream(key,st){S.streams[key]=st;renderWatchInd()}
+function delStream(key){delete S.streams[key];renderWatchInd()}
+
+function startWatch(cfg){ // {key,path,onList,onEvent}
+  var ctl={stopped:false,ac:null};
+  ctl.stop=function(){ctl.stopped=true;if(ctl.ac)ctl.ac.abort();delStream(cfg.key)};
+  (async function run(){
+    var rv=null;
+    while(!ctl.stopped){
+      try{
+        ctl.ac=new AbortController();
+        if(rv===null){
+          setStream(cfg.key,'sync');
+          var lr=await fetch(cfg.path+'?limit=500',{signal:ctl.ac.signal});
+          if(!lr.ok)throw new Error('list HTTP '+lr.status);
+          var body=await lr.json();
+          rv=body.metadata.resourceVersion;
+          cfg.onList(body.items||[]);
+        }
+        var wr=await fetch(cfg.path+'?watch=1&allowWatchBookmarks=true&resourceVersion='+rv,
+                           {signal:ctl.ac.signal});
+        if(wr.status===410){rv=null;continue}
+        if(!wr.ok)throw new Error('watch HTTP '+wr.status);
+        setStream(cfg.key,'connected');
+        var reader=wr.body.getReader(),dec=new TextDecoder(),buf='';
+        for(;;){
+          var chunk=await reader.read();
+          if(chunk.done)break;
+          buf+=dec.decode(chunk.value,{stream:true});
+          var nl;
+          while((nl=buf.indexOf('\n'))>=0){
+            var line=buf.slice(0,nl);buf=buf.slice(nl+1);
+            if(!line.trim())continue;
+            var ev=JSON.parse(line);
+            if(ev.type==='BOOKMARK'){rv=ev.object.metadata.resourceVersion;continue}
+            if(ev.type==='ERROR'){
+              if(ev.object&&ev.object.code===410)rv=null; // 410 Gone → full re-list
+              throw new Error('watch ERROR event');
+            }
+            rv=ev.object.metadata.resourceVersion;
+            cfg.onEvent(ev.type,ev.object);
+          }
+        }
+        /* stream ended (server timeout) → loop reconnects from last rv */
+      }catch(e){
+        if(ctl.stopped)return;
+        setStream(cfg.key,'resync');
+        await sleep(1200);
+      }
+    }
+  })();
+  return ctl;
+}
+
+function renderWatchInd(){
+  var vals=Object.keys(S.streams).map(function(k){return S.streams[k]});
+  var ind=$('watchInd'),txt=$('watchTxt'),st;
+  if(!vals.length||vals.indexOf('resync')>-1||vals.indexOf('sync')>-1)st='resync';
+  else st='connected';
+  ind.className=st;
+  txt.textContent=st==='connected'?'watch: connected':'watch: re-syncing';
+}
+
+/* ------------------------------------------------------------------ version */
+fetch('/version').then(function(r){return r.json()}).then(function(v){
+  $('verInfo').textContent='api-server '+v.gitVersion+' · '+v.platform;
+}).catch(function(){
+  $('verInfo').textContent='API unreachable — is serve.sh running?';
+});
+
+/* ------------------------------------------------------------------ namespaces */
+function renderNsSel(){
+  var sel=$('nsSel'),names=S.namespaces.slice().sort();
+  if(names.indexOf(S.ns)<0)names.unshift(S.ns); // keep selection visible even if absent
+  sel.innerHTML='';
+  names.forEach(function(n){
+    var o=document.createElement('option');
+    o.value=n;o.textContent=n;if(n===S.ns)o.selected=true;
+    sel.appendChild(o);
+  });
+  var missing=S.namespaces.length>0&&S.namespaces.indexOf(S.ns)<0;
+  var box=$('nsMissing');
+  box.classList.toggle('show',missing);
+  if(missing)box.innerHTML='Namespace <code>'+S.ns+'</code> not found yet — apply the M1 manifest '+
+    '(Step 3: <code>kubectl apply -f labs/m1/nimbusai-gateway.yaml</code>) and this view lights up on its own. No refresh needed: the watch stream will deliver it.';
+}
+$('nsSel').addEventListener('change',function(){switchNs(this.value)});
+
+startWatch({
+  key:'namespaces',path:'/api/v1/namespaces',
+  onList:function(items){
+    S.namespaces=items.map(function(n){return n.metadata.name});
+    renderNsSel();
+  },
+  onEvent:function(type,obj){
+    var n=obj.metadata.name,i=S.namespaces.indexOf(n);
+    if(type==='DELETED'){if(i>-1)S.namespaces.splice(i,1)}
+    else if(i<0)S.namespaces.push(n);
+    renderNsSel();
+  }
+});
+
+/* ------------------------------------------------------------------ nodes */
+startWatch({
+  key:'nodes',path:'/api/v1/nodes',
+  onList:function(items){
+    S.nodes={};
+    items.forEach(function(n){S.nodes[n.metadata.name]=n});
+    renderCluster();
+  },
+  onEvent:function(type,obj){
+    if(type==='DELETED')delete S.nodes[obj.metadata.name];
+    else S.nodes[obj.metadata.name]=obj;
+    renderCluster();
+  }
+});
+
+/* ------------------------------------------------------------------ namespaced watches */
+function switchNs(ns){
+  S.ns=ns;
+  S.ctls.forEach(function(c){c.stop()});
+  S.ctls=[];
+  S.deploys={};S.pods={};prevDep={};
+  $('depCards').innerHTML='';
+  $('evList').innerHTML='<div id="evEmpty">— waiting for events…</div>';
+  renderNsSel();renderDeps();renderCluster();
+  startNsWatches();
+}
+
+function startNsWatches(){
+  var ns=S.ns;
+  S.ctls.push(startWatch({
+    key:'deployments',path:'/apis/apps/v1/namespaces/'+ns+'/deployments',
+    onList:function(items){
+      S.deploys={};
+      items.forEach(function(d){S.deploys[d.metadata.name]=d});
+      renderDeps();
+    },
+    onEvent:function(type,obj){
+      if(type==='DELETED')delete S.deploys[obj.metadata.name];
+      else S.deploys[obj.metadata.name]=obj;
+      renderDeps();
+    }
+  }));
+  S.ctls.push(startWatch({
+    key:'pods',path:'/api/v1/namespaces/'+ns+'/pods',
+    onList:function(items){
+      S.pods={};
+      items.forEach(function(p){S.pods[p.metadata.name]=p});
+      renderCluster();
+    },
+    onEvent:function(type,obj){
+      if(type==='DELETED'){
+        delete S.pods[obj.metadata.name];
+        animateOut(obj.metadata.name);
+      }else S.pods[obj.metadata.name]=obj;
+      renderCluster();
+    }
+  }));
+  S.ctls.push(startWatch({
+    key:'events',path:'/api/v1/namespaces/'+ns+'/events',
+    onList:function(items){
+      items.sort(function(a,b){return evTime(a)-evTime(b)});
+      items.slice(-40).forEach(function(e){appendEvent(e,false)});
+    },
+    onEvent:function(type,obj){
+      if(type==='DELETED')return;
+      appendEvent(obj,true);
+    }
+  }));
+}
+
+/* ------------------------------------------------------------------ deployment cards */
+function esc(s){var d=document.createElement('span');d.textContent=s;return d.innerHTML}
+function cardId(n){return 'dep-'+n}
+
+function renderDeps(){
+  var host=$('depCards'),names=Object.keys(S.deploys).sort();
+  $('noDepsPanel').style.display=names.length?'none':'';
+  /* drop cards for gone deployments */
+  Array.prototype.slice.call(host.children).forEach(function(el){
+    if(names.indexOf(el.dataset.name)<0){host.removeChild(el);delete prevDep[el.dataset.name]}
+  });
+  names.forEach(function(n){
+    var d=S.deploys[n],el=document.getElementById(cardId(n));
+    if(!el){
+      el=document.createElement('div');
+      el.className='panel depCard';el.id=cardId(n);el.dataset.name=n;
+      el.innerHTML='<h2>Deployment <span class="dname">'+esc(n)+'</span><span class="rv"></span></h2>'+
+        '<div class="row"><span class="lbl">spec.replicas</span><span class="val vSpec"></span></div>'+
+        '<div class="row"><span class="lbl">metadata.generation</span><span><span class="val vGen"></span></span></div>'+
+        '<div class="row"><span class="lbl">status.observedGeneration</span><span><span class="val vObs"></span><span class="pill lag">behind</span></span></div>'+
+        '<div class="row"><span class="lbl">status.readyReplicas</span><span class="val vReady"></span></div>'+
+        '<div class="row"><span class="lbl">Available</span><span class="val vAvail"></span></div>';
+      host.appendChild(el);
+    }
+    var st=d.status||{},gen=d.metadata.generation||0,obs=st.observedGeneration||0;
+    var ready=st.readyReplicas||0,spec=(d.spec&&d.spec.replicas!=null)?d.spec.replicas:1;
+    var avail='Unknown';
+    (st.conditions||[]).forEach(function(c){if(c.type==='Available')avail=c.status});
+    var p=prevDep[n]||{};
+    setVal(el,'.vSpec',spec,p.spec,'flash');
+    setVal(el,'.vGen',gen,p.gen,'flash');
+    setVal(el,'.vObs',obs,p.obs,'flash-ok');
+    setVal(el,'.vReady',ready,p.ready,'flash-ok');
+    var va=el.querySelector('.vAvail');
+    if(avail!==p.avail){va.classList.remove('flash','flash-ok');void va.offsetWidth;
+      va.classList.add(avail==='True'?'flash-ok':'flash')}
+    va.textContent=avail;
+    va.classList.toggle('true',avail==='True');va.classList.toggle('false',avail==='False');
+    el.querySelector('.pill.lag').classList.toggle('show',obs<gen);
+    el.querySelector('.rv').textContent='rv '+d.metadata.resourceVersion;
+    prevDep[n]={spec:spec,gen:gen,obs:obs,ready:ready,avail:avail};
+  });
+}
+function setVal(root,sel,v,old,cls){
+  var el=root.querySelector(sel);
+  if(old!==undefined&&v!==old){el.classList.remove('flash','flash-ok');void el.offsetWidth;el.classList.add(cls)}
+  el.textContent=v;
+}
+
+/* ------------------------------------------------------------------ cluster: nodes + pod chips */
+var chips={}; // podName -> element
+function podPhase(p){
+  if(p.metadata.deletionTimestamp)return 'Terminating';
+  var ph=(p.status&&p.status.phase)||'Pending';
+  if(ph==='Pending'){
+    var cs=(p.status&&p.status.containerStatuses)||[];
+    for(var i=0;i<cs.length;i++)
+      if(cs[i].state&&cs[i].state.waiting&&cs[i].state.waiting.reason==='ContainerCreating')return 'Creating';
+  }
+  if(ph==='Running'){
+    var rd=false;
+    ((p.status&&p.status.conditions)||[]).forEach(function(c){if(c.type==='Ready'&&c.status==='True')rd=true});
+    if(!rd)return 'Creating'; // running but not ready yet
+  }
+  return ph;
+}
+function restarts(p){
+  var n=0;((p.status&&p.status.containerStatuses)||[]).forEach(function(c){n+=c.restartCount||0});
+  return n;
+}
+function chipFor(p){
+  var name=p.metadata.name,el=chips[name];
+  if(!el){
+    el=document.createElement('div');
+    el.innerHTML='<span class="dotp"></span><span class="pname"></span><span class="ph"></span><span class="rst"></span>';
+    el.dataset.pod=name;
+    el.querySelector('.pname').textContent=name.slice(-5);
+    chips[name]=el;
+  }
+  var ph=podPhase(p),r=restarts(p);
+  el.className='pod '+ph;
+  el.title=name+' — '+ph+(r?' · restarts: '+r:'');
+  el.querySelector('.ph').textContent=ph;
+  el.querySelector('.rst').textContent=r?'↻'+r:'';
+  return el;
+}
+function animateOut(name){
+  var el=chips[name];
+  if(!el)return;
+  delete chips[name];
+  el.classList.add('gone');
+  setTimeout(function(){if(el.parentNode)el.parentNode.removeChild(el)},520);
+}
+function nodeRole(n){
+  var l=n.metadata.labels||{};
+  return ('node-role.kubernetes.io/control-plane' in l)?'control-plane':'worker';
+}
+function nodeReady(n){
+  var r=false;
+  ((n.status&&n.status.conditions)||[]).forEach(function(c){if(c.type==='Ready'&&c.status==='True')r=true});
+  return r;
+}
+function renderCluster(){
+  var host=$('nodes');
+  var names=Object.keys(S.nodes).sort(function(a,b){
+    var ra=nodeRole(S.nodes[a])==='control-plane'?0:1, rb=nodeRole(S.nodes[b])==='control-plane'?0:1;
+    return ra-rb||(a<b?-1:1);
+  });
+  /* node boxes */
+  names.forEach(function(nm){
+    var n=S.nodes[nm],el=document.getElementById('node-'+nm);
+    if(!el){
+      el=document.createElement('div');
+      el.className='node';el.id='node-'+nm;
+      el.innerHTML='<div class="nname"><b></b><span class="badge taint" style="display:none">NoSchedule</span>'+
+        '<span class="badge cordon" style="display:none">SchedulingDisabled</span>'+
+        '<span class="badge notready" style="display:none">NotReady</span>'+
+        '<span class="nver"></span></div><div class="podArea"><span class="noPods">— no pods from this namespace</span></div>';
+      el.querySelector('b').textContent=nm;
+      host.appendChild(el);
+    }
+    host.appendChild(el); // keep sort order
+    var cordoned=!!(n.spec&&n.spec.unschedulable);
+    el.classList.toggle('cordoned',cordoned);
+    el.querySelector('.badge.cordon').style.display=cordoned?'':'none';
+    var taint=((n.spec&&n.spec.taints)||[]).some(function(t){return t.effect==='NoSchedule'&&t.key.indexOf('control-plane')>-1});
+    el.querySelector('.badge.taint').style.display=taint?'':'none';
+    el.querySelector('.badge.notready').style.display=nodeReady(n)?'none':'';
+    el.querySelector('.nver').textContent=nodeRole(n)+' · '+((n.status&&n.status.nodeInfo&&n.status.nodeInfo.kubeletVersion)||'');
+  });
+  /* drop boxes for gone nodes */
+  Array.prototype.slice.call(host.querySelectorAll('.node')).forEach(function(el){
+    if(names.indexOf(el.id.slice(5))<0)host.removeChild(el);
+  });
+  /* unscheduled tray */
+  var tray=document.getElementById('tray');
+  if(!tray){
+    tray=document.createElement('div');tray.id='tray';
+    tray.innerHTML='<span class="tlbl">Unscheduled</span><span id="trayEmpty">— none, scheduler is idle</span>';
+    host.appendChild(tray);
+  }
+  host.appendChild(tray);
+  /* place pod chips */
+  var seen={},pendingUnbound=0;
+  Object.keys(S.pods).sort().forEach(function(pn){
+    var p=S.pods[pn];seen[pn]=1;
+    var el=chipFor(p);
+    var nodeName=p.spec&&p.spec.nodeName;
+    var want=nodeName&&document.getElementById('node-'+nodeName)
+      ?document.getElementById('node-'+nodeName).querySelector('.podArea'):tray;
+    if(want===tray&&podPhase(p)!=='Terminating')pendingUnbound++;
+    if(el.parentNode!==want)want.appendChild(el);
+  });
+  Object.keys(chips).forEach(function(pn){
+    if(!seen[pn]&&!chips[pn].classList.contains('gone')){
+      if(chips[pn].parentNode)chips[pn].parentNode.removeChild(chips[pn]);
+      delete chips[pn];
+    }
+  });
+  $('trayEmpty').style.display=pendingUnbound?'none':'';
+  tray.classList.toggle('hot',pendingUnbound>0);
+  /* per-node empty hints */
+  names.forEach(function(nm){
+    var area=document.getElementById('node-'+nm).querySelector('.podArea');
+    var hasPod=area.querySelector('.pod');
+    var hint=area.querySelector('.noPods');
+    if(hasPod&&hint)hint.remove();
+    if(!hasPod&&!hint){
+      var s=document.createElement('span');s.className='noPods';
+      s.textContent='— no pods from this namespace';area.appendChild(s);
+    }
+  });
+}
+
+/* ------------------------------------------------------------------ events */
+function evTime(e){
+  return Date.parse(e.lastTimestamp||e.eventTime||(e.metadata&&e.metadata.creationTimestamp)||0)||0;
+}
+function age(ts){
+  var s=Math.max(0,Math.round((Date.now()-ts)/1000));
+  if(s<120)return s+'s';
+  var m=Math.round(s/60);if(m<120)return m+'m';
+  var h=Math.round(m/60);if(h<48)return h+'h';
+  return Math.round(h/24)+'d';
+}
+function appendEvent(e,live){
+  var list=$('evList'),empty=document.getElementById('evEmpty');
+  if(empty)empty.remove();
+  var d=document.createElement('div');
+  d.className='ev'+(e.type==='Warning'?' warn':'')+(live?' new':'');
+  var obj=(e.involvedObject?(e.involvedObject.kind||'').toLowerCase()+'/'+(e.involvedObject.name||''):'');
+  var reason=(e.reason||'')+(e.count>1?' ×'+e.count:'');
+  d.innerHTML='<span class="et"></span><span class="er"></span><span class="eo"></span><span class="em"></span>';
+  d.children[0].textContent=age(evTime(e));
+  d.children[0].dataset.ts=evTime(e);
+  d.children[1].textContent=reason;
+  d.children[2].textContent=obj;
+  d.children[3].textContent=e.message||'';
+  d.title=reason+'  '+obj+'  —  '+(e.message||'');
+  list.appendChild(d);
+  while(list.children.length>200)list.removeChild(list.firstChild);
+  if(!S.evHover)list.scrollTop=list.scrollHeight; // pause-on-hover
+}
+$('evList').addEventListener('mouseenter',function(){S.evHover=true;$('events').classList.add('hover')});
+$('evList').addEventListener('mouseleave',function(){
+  S.evHover=false;$('events').classList.remove('hover');
+  $('evList').scrollTop=$('evList').scrollHeight;
+});
+setInterval(function(){ /* refresh ages */
+  Array.prototype.slice.call(document.querySelectorAll('.ev .et')).forEach(function(el){
+    if(el.dataset.ts)el.textContent=age(+el.dataset.ts);
+  });
+},10000);
+
+/* ------------------------------------------------------------------ boot */
+renderNsSel();
+startNsWatches();
+})();
+</script>
+</body>
+</html>
