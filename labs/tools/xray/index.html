@@ -212,6 +212,50 @@
   .au .acode.warn{color:var(--warn)} .au .acode.bad{color:var(--bad)}
   .au .alat{flex:0 0 4rem;text-align:right;color:var(--dim)}
 
+  /* ---------- storage lens (M3) ---------- */
+  body.lens-st #main,body.lens-st #events{display:none}
+  #stMain{display:none;flex-direction:column;gap:6px;flex:1 1 auto;min-height:0}
+  body.lens-st #stMain{display:flex}
+  #stAlarm{flex:0 0 auto;border:1px solid var(--line);border-radius:9px;padding:7px 14px;
+    font-family:var(--mono);font-size:.95rem;font-weight:700;letter-spacing:.4px;color:var(--dim)}
+  #stAlarm small{display:block;font-weight:400;letter-spacing:0;font-size:.76rem;opacity:.85;margin-top:1px}
+  #stAlarm small code{font-size:.74rem;background:rgba(255,255,255,.08);padding:0 4px;border-radius:4px}
+  #stAlarm.ok{border-color:rgba(61,220,151,.45);color:var(--ok);background:rgba(61,220,151,.06)}
+  #stAlarm.alarm{border-color:var(--bad);color:#fff;background:rgba(255,107,107,.28);
+    font-size:1.08rem;animation:alarmpulse 1s infinite}
+  @keyframes alarmpulse{50%{background:rgba(255,107,107,.5);border-color:#ffb3b3;
+    box-shadow:0 0 18px rgba(255,107,107,.55)}}
+  #stHint{display:none;border:1px dashed rgba(245,185,66,.5);border-radius:8px;padding:8px 10px;
+    color:var(--warn);font-size:.86rem;background:rgba(245,185,66,.06);line-height:1.55}
+  #stHint.show{display:block}
+  #stHint code{font-family:var(--mono);font-size:.8rem;color:var(--txt);background:rgba(255,255,255,.06);padding:0 4px;border-radius:4px}
+  #stGrid{flex:1;display:grid;grid-template-columns:1.15fr 1fr;
+    grid-template-rows:minmax(0,1.15fr) minmax(0,1fr);gap:6px;min-height:0}
+  #stGrid .panel{display:flex;flex-direction:column;overflow-y:auto;scrollbar-width:thin}
+  .stBarLbl{display:flex;justify-content:space-between;align-items:baseline;
+    font-family:var(--mono);font-size:.8rem;color:var(--dim);margin-top:6px}
+  .stBarLbl .v{color:var(--txt);font-weight:600;font-size:.88rem}
+  .stBar{position:relative;height:1.5rem;background:#0a0f1c;border-radius:6px;overflow:hidden;margin-top:3px}
+  .stBar .fill{position:absolute;top:0;bottom:0;left:0;width:0%;border-radius:6px;transition:width .6s ease}
+  .stBar .fill.phys{background:linear-gradient(90deg,#1d7fa8,var(--accent))}
+  .stBar .fill.inuse{background:linear-gradient(90deg,#5346b8,var(--accent2))}
+  .stBar.hot .fill{background:linear-gradient(90deg,#a83a3a,var(--bad))}
+  .stBar .qline{position:absolute;top:0;bottom:0;width:2px;background:var(--warn);
+    box-shadow:0 0 6px rgba(245,185,66,.9)}
+  .stQlbl{font-family:var(--mono);font-size:.68rem;color:var(--warn);text-align:right;margin-top:2px}
+  .stKpis{display:flex;gap:10px;flex-wrap:wrap;margin-top:6px}
+  .stKpi{flex:1 1 6rem;border:1px solid var(--line2);border-radius:8px;background:var(--panel2);padding:6px 9px;min-width:6rem}
+  .stKpi .kl{font-size:.68rem;letter-spacing:.6px;text-transform:uppercase;color:var(--faint);font-weight:700}
+  .stKpi .kv{font-family:var(--mono);font-size:1.45rem;font-weight:700;color:var(--accent);margin-top:1px;white-space:nowrap}
+  .stKpi .kv.warn{color:var(--warn)} .stKpi .kv.bad{color:var(--bad)}
+  .stKpi .kv.flash{animation:flash 1.1s ease-out}
+  #stRevBig{font-family:var(--mono);font-size:2.3rem;font-weight:700;color:var(--accent2);line-height:1.15}
+  #stRevBig.flash{animation:flash 1.1s ease-out}
+  #stRevDelta{font-family:var(--mono);font-size:.8rem;color:var(--dim);margin-top:2px}
+  .stMeta{font-family:var(--mono);font-size:.7rem;color:var(--faint);margin-top:auto;padding-top:5px}
+  .stNote{font-size:.78rem;color:var(--dim);line-height:1.5;margin-top:6px}
+  .stNote code{font-family:var(--mono);font-size:.74rem;color:var(--accent);background:rgba(76,201,240,.08);padding:0 4px;border-radius:4px}
+
   @media (max-width:640px){
     body{overflow:auto}
     #main{grid-template-columns:1fr}
@@ -223,6 +267,7 @@
     #auditPanel{grid-column:1;grid-row:3}
     #cpSvg{min-height:16rem}
     #auditList,#apfRows{max-height:18rem}
+    #stGrid{grid-template-columns:1fr;grid-template-rows:auto auto auto auto}
   }
   @media (prefers-reduced-motion:reduce){
     *{animation:none !important;transition:none !important}
@@ -237,6 +282,7 @@
     <nav id="tabs">
       <span class="tab active" data-lens="recon">Reconciliation</span>
       <span class="tab" data-lens="cp" title="Control-plane lens — attribution, audit stream, API Priority &amp; Fairness (Module 2)">Control Plane</span>
+      <span class="tab" data-lens="storage" title="Storage lens — etcd db size vs quota, NOSPACE alarm state, MVCC revision, apiserver→etcd latency (Module 3)">Storage</span>
       <span class="tab stub" title="Scheduling lens — unlocks in Module 4">Scheduling<small>M4+</small></span>
       <span class="tab stub" title="Scale lens — unlocks in Module 6">Scale<small>M6+</small></span>
     </nav>
@@ -322,6 +368,56 @@
         <label id="sysToggle"><input type="checkbox" id="sysCk"> show system: users</label></h2>
       <div id="auditHint"></div>
       <div id="auditList"><span id="auditEmpty">— probing for audit mode…</span></div>
+    </div>
+  </div>
+
+  <!-- ================= Storage Lens (M3) ================= -->
+  <div id="stMain">
+    <div id="stAlarm"><span id="stAlarmTxt">— probing etcd health…</span><small id="stAlarmSub"></small></div>
+    <div id="stHint"></div>
+    <div id="stGrid">
+      <div class="panel" id="stDbPanel">
+        <h2>etcd database vs quota <span class="soft">— :2381 /metrics via pod proxy, every 2.5s</span></h2>
+        <div class="stBarLbl"><span>physical file · <code style="font-size:.72rem">db_total_size_in_bytes</code></span><span class="v" id="stPhysV">—</span></div>
+        <div class="stBar" id="stPhysBar"><div class="fill phys" id="stPhysFill"></div><div class="qline" id="stQl1"></div></div>
+        <div class="stBarLbl"><span>logically in use · <code style="font-size:.72rem">…_in_use_in_bytes</code></span><span class="v" id="stUseV">—</span></div>
+        <div class="stBar" id="stUseBar"><div class="fill inuse" id="stUseFill"></div><div class="qline" id="stQl2"></div></div>
+        <div class="stQlbl" id="stQlbl">┃ quota —</div>
+        <div class="stKpis">
+          <div class="stKpi"><div class="kl">of quota (physical)</div><div class="kv" id="stPctV">—</div></div>
+          <div class="stKpi"><div class="kl">quota</div><div class="kv" id="stQuotaV">—</div></div>
+        </div>
+        <div class="stNote">The gap between the bars is reclaimable history: <code>compact</code> shrinks
+          <em>in use</em>, only <code>defrag</code> shrinks the <em>physical file</em>.</div>
+        <div class="stMeta" id="stDbMeta"></div>
+      </div>
+      <div class="panel" id="stLatPanel">
+        <h2>apiserver → etcd request latency <span class="soft">— etcd_request_duration_seconds, delta per poll</span></h2>
+        <div class="stKpis">
+          <div class="stKpi"><div class="kl">p50</div><div class="kv" id="stP50">—</div></div>
+          <div class="stKpi"><div class="kl">~p99</div><div class="kv" id="stP99">—</div></div>
+          <div class="stKpi"><div class="kl">etcd req/s</div><div class="kv" id="stRate">—</div></div>
+        </div>
+        <div class="stNote">Every storage round-trip the API server made on your behalf, timed from its
+          side. Disk pressure and defrag pauses show up here first.</div>
+        <div class="stMeta" id="stLatMeta"></div>
+      </div>
+      <div class="panel" id="stRevPanel">
+        <h2>MVCC revision <span class="soft">— the cluster's global write counter</span></h2>
+        <div id="stRevBig">—</div>
+        <div id="stRevDelta"></div>
+        <div class="stNote">Ticks on <em>every</em> write, cluster-wide — this is the number
+          <code>resourceVersion</code> is minted from. Watch it climb during the fill.</div>
+      </div>
+      <div class="panel" id="stProbePanel">
+        <h2>Probes <span class="soft">— what "healthy" means from each side</span></h2>
+        <div class="row"><span class="lbl">apiserver /readyz/etcd</span><span class="val" id="stRz">—</span></div>
+        <div class="row"><span class="lbl">apiserver /readyz/etcd-readiness</span><span class="val" id="stRzR">—</span></div>
+        <div class="row"><span class="lbl">etcd :2381/health</span><span class="val" id="stEh">—</span></div>
+        <div class="stNote">Trap to remember: during a NOSPACE alarm the two apiserver probes stay
+          <code>ok</code> — they prove etcd answers <em>reads</em>. Only etcd's own
+          <code>/health</code> (and your failing writes) betray the alarm.</div>
+      </div>
     </div>
   </div>
 </div>
@@ -1013,22 +1109,231 @@ function renderApf(m){
   $('apfMeta').textContent='polling /metrics every 2.5s · poll #'+APF.polls+' · queue bar full = '+APF.qmax+' queued';
 }
 
+/* ==================================================================
+   Storage Lens (M3)
+   Sources, all same-origin through kubectl proxy:
+   - etcd pod proxy :2381 /metrics — db size (physical vs in-use), quota,
+     current MVCC revision. Needs --listen-metrics-urls (M3 profile knob).
+   - etcd pod proxy :2381 /health — the ONLY live alarm signal. 503 while an
+     alarm (NOSPACE) is armed, 200 {"health":"true"} when clear. Do NOT use
+     etcd_debugging_server_alarms: measured on etcd 3.6.6, it never resets
+     after `alarm disarm`.
+   - apiserver /metrics — etcd_request_duration_seconds histogram, delta
+     between polls → p50/p99 + req/s.
+   - /readyz/etcd + /readyz/etcd-readiness — shown staying "ok" under
+     NOSPACE on purpose (they prove reads, not writes).
+   ================================================================== */
+var ST={timer:null,pod:null,podErr:null,polls:0,prevLat:null,rev0:null,prevRev:null,
+        lat:{p50:'—',p99:'—',rate:'—'},alarm:null,knobMissing:false};
+function stStart(){if(ST.timer)return;stTick();ST.timer=setInterval(stTick,2500)}
+function stStop(){if(ST.timer){clearInterval(ST.timer);ST.timer=null}}
+function fmtMB(b){
+  if(!(b>=0))return '—';
+  if(b<1048576)return (b/1024).toFixed(0)+' KB';
+  return (b/1048576).toFixed(1)+' MB';
+}
+function stHint(html){
+  var h=$('stHint');
+  if(!html){h.classList.remove('show');return}
+  h.innerHTML=html;h.classList.add('show');
+}
+function stParseEtcd(txt){
+  var m={};
+  txt.split('\n').forEach(function(l){
+    if(l.charCodeAt(0)!==101)return;                 /* fast path: only 'e…' lines */
+    var sp;
+    if(l.lastIndexOf('etcd_mvcc_db_total_size_in_bytes ',0)===0)m.phys=parseFloat(l.slice(33));
+    else if(l.lastIndexOf('etcd_mvcc_db_total_size_in_use_in_bytes ',0)===0)m.use=parseFloat(l.slice(40));
+    else if(l.lastIndexOf('etcd_server_quota_backend_bytes ',0)===0)m.quota=parseFloat(l.slice(32));
+    else if(l.lastIndexOf('etcd_debugging_mvcc_current_revision ',0)===0)m.rev=parseFloat(l.slice(37));
+    void sp;
+  });
+  return (m.phys>=0&&m.quota>0)?m:null;
+}
+function stParseLat(txt){
+  /* aggregate etcd_request_duration_seconds across all operation/type labels */
+  var buckets={},count=0;
+  var re=/^etcd_request_duration_seconds_(bucket|count)(?:\{([^}]*)\})?\s+([0-9.eE+-]+)/;
+  txt.split('\n').forEach(function(l){
+    if(l.charCodeAt(0)!==101)return;
+    var mm=re.exec(l);if(!mm)return;
+    var v=parseFloat(mm[3]);
+    if(mm[1]==='count'){count+=v;return}
+    var lem=/le="([^"]*)"/.exec(mm[2]||'');if(!lem)return;
+    var le=lem[1]==='+Inf'?Infinity:parseFloat(lem[1]);
+    buckets[lem[1]]=(buckets[lem[1]]||0)+v;
+    void le;
+  });
+  return {buckets:buckets,count:count};
+}
+function stQuantile(bk,q){ /* bk: {leStr:cumCount} → seconds or null */
+  var keys=Object.keys(bk).map(function(k){return{le:k==='+Inf'?Infinity:parseFloat(k),c:bk[k]}})
+    .sort(function(a,b){return a.le-b.le});
+  if(!keys.length)return null;
+  var total=keys[keys.length-1].c;
+  if(total<=0)return null;
+  var t=q*total,ple=0,pc=0;
+  for(var i=0;i<keys.length;i++){
+    var b=keys[i];
+    if(b.c>=t){
+      if(!isFinite(b.le))return ple;                 /* cap at last finite bound */
+      return b.c===pc?b.le:ple+(t-pc)/(b.c-pc)*(b.le-ple);
+    }
+    if(isFinite(b.le))ple=b.le;
+    pc=b.c;
+  }
+  return ple;
+}
+function fmtSec(s){
+  if(s==null)return '—';
+  var ms=s*1000;
+  if(ms<1)return '<1ms';
+  if(ms<100)return ms.toFixed(1)+'ms';
+  if(ms<1000)return Math.round(ms)+'ms';
+  return (ms/1000).toFixed(2)+'s';
+}
+function stSetVal(id,txt,cls){
+  var el=$(id),old=el.textContent;
+  el.textContent=txt;
+  el.className='val '+(cls||'');
+  if(old!==txt){el.classList.remove('flash');void el.offsetWidth;el.classList.add('flash')}
+}
+async function stFindPod(){
+  try{
+    var r=await fetch('/api/v1/namespaces/kube-system/pods?labelSelector=component%3Detcd&limit=5');
+    var j=await r.json(),items=j.items||[];
+    if(items.length)ST.pod=items[0].metadata.name;
+    else ST.podErr='no etcd pod in kube-system (managed control plane?) — the Storage lens needs a kubeadm/kind cluster.';
+  }catch(e){ST.podErr='cannot list kube-system pods through the proxy.'}
+}
+function stRenderAlarm(){
+  var el=$('stAlarm'),txt=$('stAlarmTxt'),sub=$('stAlarmSub');
+  if(ST.alarm===null){el.className='';txt.textContent='— probing etcd health…';sub.textContent='';return}
+  if(ST.alarm){
+    el.className='alarm';
+    txt.textContent='⚠ ETCD ALARM — NOSPACE · the cluster is READ-ONLY for writes';
+    sub.innerHTML='etcd /health is failing. Every create/update now returns '+
+      '<code>etcdserver: mvcc: database space exceeded</code>. Recover in order: reclaim keys → '+
+      '<code>compact</code> → <code>defrag</code> → <code>alarm disarm</code>.';
+  }else{
+    el.className='ok';
+    txt.textContent='✓ no alarms — etcd /health true, writes accepted';
+    sub.textContent='';
+  }
+}
+async function stTick(){
+  ST.polls++;
+  if(!ST.pod&&!ST.podErr)await stFindPod();
+  if(!ST.pod){stHint(esc(ST.podErr||'etcd pod not found.'));return}
+  var base='/api/v1/namespaces/kube-system/pods/'+ST.pod+':2381/proxy';
+
+  /* 1 — etcd metrics: db size, quota, revision */
+  var em=null;
+  try{
+    var r=await fetch(base+'/metrics');
+    if(r.ok)em=stParseEtcd(await r.text());
+  }catch(e){}
+  if(!em){
+    ST.knobMissing=true;
+    stHint('Storage lens needs the etcd metrics knob (<code>--listen-metrics-urls=http://0.0.0.0:2381</code>) '+
+      '— this cluster predates the M3 profile. Recreate it once: '+
+      '<code>bash labs/clusters/core-internals/teardown.sh &amp;&amp; bash labs/clusters/core-internals/create.sh</code> '+
+      'then restart serve.sh. The other lenses work either way.');
+  }else{
+    if(ST.knobMissing){ST.knobMissing=false;stHint(null)}
+    var scale=Math.max(em.quota*1.06,em.phys);
+    $('stPhysFill').style.width=Math.min(100,em.phys/scale*100)+'%';
+    $('stUseFill').style.width=Math.min(100,em.use/scale*100)+'%';
+    var qp=em.quota/scale*100+'%';
+    $('stQl1').style.left=qp;$('stQl2').style.left=qp;
+    $('stQlbl').textContent='┃ quota '+fmtMB(em.quota);
+    $('stPhysV').textContent=fmtMB(em.phys);
+    $('stUseV').textContent=fmtMB(em.use);
+    var pct=em.phys/em.quota*100;
+    var pctEl=$('stPctV');
+    pctEl.textContent=pct.toFixed(pct<10?2:1)+'%';
+    pctEl.className='kv'+(pct>=95?' bad':pct>=75?' warn':'');
+    $('stQuotaV').textContent=fmtMB(em.quota);
+    $('stPhysBar').classList.toggle('hot',pct>=95);
+    $('stUseBar').classList.toggle('hot',em.use/em.quota>=.95);
+    $('stDbMeta').textContent='poll #'+ST.polls+' · pod '+ST.pod;
+    if(em.rev>=0){
+      if(ST.rev0===null)ST.rev0=em.rev;
+      var rb=$('stRevBig');
+      if(ST.prevRev!==em.rev){rb.classList.remove('flash');void rb.offsetWidth;rb.classList.add('flash')}
+      rb.textContent=em.rev.toLocaleString();
+      $('stRevDelta').textContent='+'+(em.rev-ST.rev0).toLocaleString()+' since lens opened'+
+        (ST.prevRev!==null&&em.rev>ST.prevRev?' · +'+(em.rev-ST.prevRev)+' this poll':'');
+      ST.prevRev=em.rev;
+    }
+  }
+
+  /* 2 — etcd /health: the live alarm latch */
+  var healthy=null;
+  try{
+    var hr=await fetch(base+'/health');
+    if(hr.ok){
+      try{healthy=JSON.parse(await hr.text()).health==='true'}catch(e2){healthy=true}
+    }else healthy=false;                             /* 503 while an alarm is armed */
+  }catch(e){}
+  $('stEh').textContent=healthy===null?'unreachable':healthy?'true':'FAILING (503)';
+  $('stEh').className='val '+(healthy?'true':healthy===false?'false':'');
+  ST.alarm=healthy===null?ST.alarm:!healthy;
+  if(em)stRenderAlarm();
+
+  /* 3 — apiserver-side etcd latency (delta between polls) */
+  try{
+    var ar=await fetch('/metrics');
+    if(ar.ok){
+      var cur=stParseLat(await ar.text());
+      if(ST.prevLat){
+        var d={},any=0;
+        Object.keys(cur.buckets).forEach(function(k){
+          var dv=cur.buckets[k]-(ST.prevLat.buckets[k]||0);
+          d[k]=dv;if(k==='+Inf')any=dv;
+        });
+        var dc=cur.count-ST.prevLat.count,dt=(Date.now()-ST.prevLat.t)/1000;
+        if(any>0){
+          ST.lat={p50:fmtSec(stQuantile(d,.5)),p99:fmtSec(stQuantile(d,.99)),
+                  rate:(dc/dt).toFixed(dc/dt<10?1:0)};
+          $('stLatMeta').textContent=dc+' etcd requests in the last '+dt.toFixed(1)+'s';
+        }else $('stLatMeta').textContent='no etcd requests in the last '+dt.toFixed(1)+'s (showing last active poll)';
+      }
+      ST.prevLat=cur;ST.prevLat.t=Date.now();
+      $('stP50').textContent=ST.lat.p50;
+      $('stP99').textContent=ST.lat.p99;
+      $('stRate').textContent=ST.lat.rate;
+    }
+  }catch(e){}
+
+  /* 4 — apiserver readyz probes (they stay ok under NOSPACE — teaching point) */
+  try{var z=await fetch('/readyz/etcd');stSetVal('stRz',z.ok?'ok':'HTTP '+z.status,z.ok?'true':'false')}
+  catch(e){stSetVal('stRz','unreachable','false')}
+  try{var z2=await fetch('/readyz/etcd-readiness');stSetVal('stRzR',z2.ok?'ok':'HTTP '+z2.status,z2.ok?'true':'false')}
+  catch(e){stSetVal('stRzR','unreachable','false')}
+}
+
 /* ---------- lens switching ---------- */
+var LENS_TITLE={recon:'· Reconciliation Lens',cp:'· Control-Plane Lens',storage:'· Storage Lens'};
+var LENS_HINT={
+  recon:'Live view of your REAL cluster — every panel below is fed by raw <code>watch</code> streams from the API server, the same firehose every controller drinks from.',
+  cp:'The control plane itself, live: <code>managedFields</code> attribution pulses, the API server audit stream, and <code>/metrics</code> APF gauges — all same-origin through kubectl proxy.',
+  storage:'etcd, live: db size vs quota and the MVCC revision from etcd’s <code>:2381/metrics</code> (pod proxy), alarm state from its <code>/health</code>, and the apiserver’s own etcd request latencies.'
+};
 function setLens(l){
   if(l===curLens)return;
   curLens=l;
-  document.body.className=l==='cp'?'lens-cp':'';
+  document.body.className=l==='cp'?'lens-cp':l==='storage'?'lens-st':'';
   Array.prototype.slice.call(document.querySelectorAll('#tabs .tab[data-lens]')).forEach(function(t){
     t.classList.toggle('active',t.dataset.lens===l);
   });
-  $('lensName').textContent=l==='cp'?'· Control-Plane Lens':'· Reconciliation Lens';
-  $('barHint').innerHTML=l==='cp'
-    ?'The control plane itself, live: <code>managedFields</code> attribution pulses, the API server audit stream, and <code>/metrics</code> APF gauges — all same-origin through kubectl proxy.'
-    :'Live view of your REAL cluster — every panel below is fed by raw <code>watch</code> streams from the API server, the same firehose every controller drinks from.';
+  $('lensName').textContent=LENS_TITLE[l]||LENS_TITLE.recon;
+  $('barHint').innerHTML=LENS_HINT[l]||LENS_HINT.recon;
   if(l==='cp'){
     if(!AUD.started){AUD.started=true;auditStart()}
     apfStart();
   }else apfStop();
+  if(l==='storage')stStart();else stStop();
 }
 $('tabs').addEventListener('click',function(e){
   var t=e.target.closest('.tab');
@@ -1038,7 +1343,7 @@ $('tabs').addEventListener('click',function(e){
 /* ------------------------------------------------------------------ boot */
 renderNsSel();
 startNsWatches();
-window.__xray={S:S,AUD:AUD,APF:APF,setLens:setLens};   /* test hook */
+window.__xray={S:S,AUD:AUD,APF:APF,ST:ST,setLens:setLens};   /* test hook */
 })();
 </script>
 </body>

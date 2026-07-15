@@ -5,6 +5,15 @@ A live visualizer for YOUR real cluster. One evolving tool, one lens per module.
 - **Reconciliation Lens (M1):** Deployment spec vs status (generation /
   observedGeneration lag), pod chips grouped by node, cordon state, and a live
   kubectl-style event stream.
+- **Storage Lens (M3):** etcd itself, live — the database file (physical vs logically
+  in-use) as paired bars against the 256 MB quota line, a loud NOSPACE alarm banner,
+  the MVCC revision counter ticking on every cluster write, apiserver→etcd request
+  latency (p50/p99 from `etcd_request_duration_seconds`, delta per poll), and the
+  probe trap: `/readyz/etcd` stays `ok` during a NOSPACE alarm (it proves reads),
+  while etcd's own `/health` goes 503. Sources: the etcd pod's `:2381/metrics` +
+  `/health` through the API server's pod proxy (needs the M3 profile knobs) and the
+  apiserver `/metrics`. The M3 lab's fill → alarm → compact/defrag/disarm cycle plays
+  out on this lens in real time.
 - **Control-Plane Lens (M2):** the control plane itself, live — three signal layers:
   - **L1 · attribution** (works on any cluster): every change on the watch streams is
     attributed via its most-recent `managedFields` manager and `event.source`, then
@@ -52,3 +61,6 @@ for `/metrics` and probes.
 - **"namespace not found yet"** → apply the M1 manifest; the page lights up on its own.
 - **"audit mode off" in the Control-Plane lens** → recreate the profile with `AUDIT=1` (above), restart serve.sh.
 - **APF meters frozen** → serve.sh must run with a kubeconfig allowed to GET `/metrics` (kind's default admin is).
+- **"Storage lens needs the etcd metrics knob"** → the cluster predates the M3 profile
+  (`--listen-metrics-urls`). Recreate once: `bash labs/clusters/core-internals/teardown.sh
+  && bash labs/clusters/core-internals/create.sh`, restart serve.sh.

@@ -1,0 +1,67 @@
+{
+  "checks": [
+    {
+      "id": "core-internals-cluster-up",
+      "describe": "core-internals profile is up: kind context kind-kubeadv-core answers and the worker node exists (CLUSTER KEPT — M4 continues on it)",
+      "run": "kubectl --context kind-kubeadv-core get nodes",
+      "assert": {
+        "contains": "kubeadv-core-worker"
+      },
+      "weight": 1
+    },
+    {
+      "id": "etcd-quota-flag-present",
+      "describe": "the etcd static pod carries the M3 profile quota flag --quota-backend-bytes=268435456",
+      "run": "kubectl --context kind-kubeadv-core -n kube-system get pod etcd-kubeadv-core-control-plane -o jsonpath='{.spec.containers[0].command}'",
+      "assert": {
+        "contains": "--quota-backend-bytes=268435456"
+      },
+      "weight": 2
+    },
+    {
+      "id": "etcd-metrics-listener-present",
+      "describe": "the etcd static pod exposes metrics on :2381 (feeds the X-Ray Storage lens)",
+      "run": "kubectl --context kind-kubeadv-core -n kube-system get pod etcd-kubeadv-core-control-plane -o jsonpath='{.spec.containers[0].command}'",
+      "assert": {
+        "contains": "--listen-metrics-urls=http://0.0.0.0:2381"
+      },
+      "weight": 1
+    },
+    {
+      "id": "no-active-nospace-alarm",
+      "describe": "the NOSPACE alarm was disarmed: etcdctl alarm list is empty after recovery",
+      "run": "out=$(kubectl --context kind-kubeadv-core exec -n kube-system etcd-kubeadv-core-control-plane -- etcdctl --cacert /etc/kubernetes/pki/etcd/ca.crt --cert /etc/kubernetes/pki/etcd/server.crt --key /etc/kubernetes/pki/etcd/server.key alarm list); echo \"alarms:[${out}]\"",
+      "assert": {
+        "matches": "alarms:\\[\\]"
+      },
+      "weight": 3
+    },
+    {
+      "id": "db-headroom-restored",
+      "describe": "compact + defrag reclaimed the disk: dbSizeInUse <= dbSize and dbSize is back under the 256 MB quota",
+      "run": "J=$(kubectl --context kind-kubeadv-core exec -n kube-system etcd-kubeadv-core-control-plane -- etcdctl --cacert /etc/kubernetes/pki/etcd/ca.crt --cert /etc/kubernetes/pki/etcd/server.crt --key /etc/kubernetes/pki/etcd/server.key endpoint status -w json); S=$(printf '%s' \"$J\" | grep -o '\"dbSize\":[0-9]*' | head -1 | cut -d: -f2 | tr -d ' \\n'); U=$(printf '%s' \"$J\" | grep -o '\"dbSizeInUse\":[0-9]*' | head -1 | cut -d: -f2 | tr -d ' \\n'); [ -n \"$S\" ] && [ -n \"$U\" ] && [ \"$U\" -le \"$S\" ] && [ \"$S\" -lt 268435456 ] && echo DB-HEADROOM-OK || echo \"DB-HEADROOM-BAD inuse=${U} physical=${S} quota=268435456\"",
+      "assert": {
+        "contains": "DB-HEADROOM-OK"
+      },
+      "weight": 3
+    },
+    {
+      "id": "etcd-lab-namespace-removed",
+      "describe": "teardown removed the junk namespace: etcd-lab is absent",
+      "run": "kubectl --context kind-kubeadv-core get namespace etcd-lab 2>&1 || true",
+      "assert": {
+        "contains": "NotFound"
+      },
+      "weight": 2
+    },
+    {
+      "id": "cluster-accepts-writes",
+      "describe": "the cluster accepts writes again: a probe ConfigMap can be created and deleted",
+      "run": "kubectl --context kind-kubeadv-core -n default delete configmap m3-write-probe --ignore-not-found >/dev/null; kubectl --context kind-kubeadv-core -n default create configmap m3-write-probe --from-literal=probe=m3 && kubectl --context kind-kubeadv-core -n default delete configmap m3-write-probe",
+      "assert": {
+        "contains": "m3-write-probe\" deleted"
+      },
+      "weight": 3
+    }
+  ]
+}

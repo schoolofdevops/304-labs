@@ -1,0 +1,40 @@
+{
+  "checks": [
+    {
+      "id": "registry-key-readable-via-etcdctl",
+      "describe": "etcdctl exec'd into the etcd static pod reads an always-present /registry key (default/kube-root-ca.crt)",
+      "run": "kubectl --context kind-kubeadv-core -n kube-system exec etcd-kubeadv-core-control-plane -- etcdctl --endpoints=https://127.0.0.1:2379 --cacert=/etc/kubernetes/pki/etcd/ca.crt --cert=/etc/kubernetes/pki/etcd/server.crt --key=/etc/kubernetes/pki/etcd/server.key get /registry/configmaps/default/kube-root-ca.crt --keys-only",
+      "assert": {
+        "contains": "/registry/configmaps/default/kube-root-ca.crt"
+      },
+      "weight": 2
+    },
+    {
+      "id": "endpoint-status-healthy-json",
+      "describe": "etcdctl endpoint status returns JSON with a positive header revision",
+      "run": "kubectl --context kind-kubeadv-core -n kube-system exec etcd-kubeadv-core-control-plane -- etcdctl --endpoints=https://127.0.0.1:2379 --cacert=/etc/kubernetes/pki/etcd/ca.crt --cert=/etc/kubernetes/pki/etcd/server.crt --key=/etc/kubernetes/pki/etcd/server.key endpoint status -w json",
+      "assert": {
+        "matches": "\"revision\":[1-9][0-9]*"
+      },
+      "weight": 2
+    },
+    {
+      "id": "snapshot-status-fresh-save",
+      "describe": "a fresh snapshot save inspected with etcdutl reports revision > 0 (file removed afterwards)",
+      "run": "kubectl --context kind-kubeadv-core -n kube-system exec etcd-kubeadv-core-control-plane -- etcdctl --endpoints=https://127.0.0.1:2379 --cacert=/etc/kubernetes/pki/etcd/ca.crt --cert=/etc/kubernetes/pki/etcd/server.crt --key=/etc/kubernetes/pki/etcd/server.key snapshot save /var/lib/etcd/m3-check.snap && kubectl --context kind-kubeadv-core -n kube-system exec etcd-kubeadv-core-control-plane -- etcdutl snapshot status /var/lib/etcd/m3-check.snap -w json; kubectl --context kind-kubeadv-core -n kube-system exec etcd-kubeadv-core-control-plane -- rm -f /var/lib/etcd/m3-check.snap",
+      "assert": {
+        "matches": "\"revision\":[1-9][0-9]*"
+      },
+      "weight": 2
+    },
+    {
+      "id": "compacted-watch-errors",
+      "describe": "after compacting to the current revision, a watch from below the compaction floor fails with the compacted-revision error (the storage-layer face of 410 Gone)",
+      "run": "REV=$(kubectl --context kind-kubeadv-core -n kube-system exec etcd-kubeadv-core-control-plane -- etcdctl --endpoints=https://127.0.0.1:2379 --cacert=/etc/kubernetes/pki/etcd/ca.crt --cert=/etc/kubernetes/pki/etcd/server.crt --key=/etc/kubernetes/pki/etcd/server.key endpoint status -w json | grep -o '\"revision\":[0-9]*' | head -1 | grep -o '[0-9]*'); kubectl --context kind-kubeadv-core -n kube-system exec etcd-kubeadv-core-control-plane -- etcdctl --endpoints=https://127.0.0.1:2379 --cacert=/etc/kubernetes/pki/etcd/ca.crt --cert=/etc/kubernetes/pki/etcd/server.crt --key=/etc/kubernetes/pki/etcd/server.key compact ${REV} 2>&1; kubectl --context kind-kubeadv-core -n kube-system exec etcd-kubeadv-core-control-plane -- etcdctl --endpoints=https://127.0.0.1:2379 --cacert=/etc/kubernetes/pki/etcd/ca.crt --cert=/etc/kubernetes/pki/etcd/server.crt --key=/etc/kubernetes/pki/etcd/server.key watch /registry/namespaces/default --rev=1 2>&1",
+      "assert": {
+        "contains": "required revision has been compacted"
+      },
+      "weight": 2
+    }
+  ]
+}

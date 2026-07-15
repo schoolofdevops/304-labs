@@ -38,4 +38,12 @@ else
   echo "audit mode: off — this cluster predates the audit default; recreate once: bash teardown.sh && bash create.sh"
 fi
 
+if kubectl --context "${CTX}" -n kube-system get pod \
+     "etcd-${CLUSTER_NAME}-control-plane" -o yaml 2>/dev/null \
+     | grep -q 'quota-backend'; then
+  echo "etcd quota: 256MB — metrics on :2381 (M3 profile knobs present)"
+else
+  echo "etcd knobs: missing — cluster predates M3 profile; recreate once: bash teardown.sh && bash create.sh"
+fi
+
 kubectl --context "${CTX}" get nodes
