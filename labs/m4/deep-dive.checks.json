@@ -1,0 +1,40 @@
+{
+  "checks": [
+    {
+      "id": "scheduler-filter-plugin-names-its-rejection",
+      "describe": "the scheduler's Filter plugins name themselves in a FailedScheduling reason — a NodeAffinity mismatch reports 'node affinity/selector', proving the framework's Filter stage is live and readable (seeded and removed by the check)",
+      "run": "kubectl --context kind-kubeadv-core create namespace m4-check3 --dry-run=client -o yaml | kubectl --context kind-kubeadv-core apply -f - >/dev/null; printf 'apiVersion: v1\\nkind: Pod\\nmetadata:\\n  name: filterprobe\\nspec:\\n  nodeSelector:\\n    disktype: nonexistent-ssd\\n  containers:\\n  - name: pause\\n    image: registry.k8s.io/pause:3.9\\n' | kubectl --context kind-kubeadv-core apply -n m4-check3 -f - >/dev/null; sleep 4; kubectl --context kind-kubeadv-core get events -n m4-check3 --field-selector involvedObject.name=filterprobe,reason=FailedScheduling -o jsonpath='{range .items[*]}{.message}{\"\\n\"}{end}' | tail -1; kubectl --context kind-kubeadv-core delete namespace m4-check3 --wait=false >/dev/null",
+      "assert": {
+        "matches": "didn't match Pod's node affinity/selector"
+      },
+      "weight": 2
+    },
+    {
+      "id": "scheduling-gate-holds-pod",
+      "describe": "a pod with a schedulingGate reports the SchedulingGated condition reason and is not bound to a node (seeded and removed by the check)",
+      "run": "kubectl --context kind-kubeadv-core create namespace m4-check --dry-run=client -o yaml | kubectl --context kind-kubeadv-core apply -f - >/dev/null; printf 'apiVersion: v1\\nkind: Pod\\nmetadata:\\n  name: gatecheck\\nspec:\\n  schedulingGates:\\n  - name: m4-check/hold\\n  containers:\\n  - name: pause\\n    image: registry.k8s.io/pause:3.9\\n' | kubectl --context kind-kubeadv-core apply -n m4-check -f - >/dev/null; sleep 3; kubectl --context kind-kubeadv-core get pod gatecheck -n m4-check -o jsonpath='phase={.status.phase} reason={range .status.conditions[*]}{.reason}{end} node={.spec.nodeName}'; echo; kubectl --context kind-kubeadv-core delete namespace m4-check --wait=false >/dev/null",
+      "assert": {
+        "contains": "reason=SchedulingGated"
+      },
+      "weight": 2
+    },
+    {
+      "id": "priorityclass-value-ordering",
+      "describe": "a high PriorityClass created for preemption carries its numeric value, the leverage preemption ranks pods by (seeded and removed by the check)",
+      "run": "printf 'apiVersion: scheduling.k8s.io/v1\\nkind: PriorityClass\\nmetadata:\\n  name: m4-check-high\\nvalue: 1000000\\nglobalDefault: false\\n' | kubectl --context kind-kubeadv-core apply -f - >/dev/null; kubectl --context kind-kubeadv-core get priorityclass m4-check-high -o jsonpath='value={.value}'; echo; kubectl --context kind-kubeadv-core delete priorityclass m4-check-high >/dev/null",
+      "assert": {
+        "matches": "value=1000000"
+      },
+      "weight": 2
+    },
+    {
+      "id": "default-toleration-seconds-injected",
+      "describe": "the DefaultTolerationSeconds admission plugin injects the not-ready/unreachable tolerations onto a plain pod (seeded and removed by the check)",
+      "run": "kubectl --context kind-kubeadv-core create namespace m4-check2 --dry-run=client -o yaml | kubectl --context kind-kubeadv-core apply -f - >/dev/null; printf 'apiVersion: v1\\nkind: Pod\\nmetadata:\\n  name: tolcheck\\nspec:\\n  containers:\\n  - name: pause\\n    image: registry.k8s.io/pause:3.9\\n' | kubectl --context kind-kubeadv-core apply -n m4-check2 -f - >/dev/null; sleep 2; kubectl --context kind-kubeadv-core get pod tolcheck -n m4-check2 -o yaml | grep 'node.kubernetes.io'; kubectl --context kind-kubeadv-core delete namespace m4-check2 --wait=false >/dev/null",
+      "assert": {
+        "matches": "node.kubernetes.io/(not-ready|unreachable)"
+      },
+      "weight": 2
+    }
+  ]
+}

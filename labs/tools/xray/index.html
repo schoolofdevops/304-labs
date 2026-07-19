@@ -256,6 +256,55 @@
   .stNote{font-size:.78rem;color:var(--dim);line-height:1.5;margin-top:6px}
   .stNote code{font-family:var(--mono);font-size:.74rem;color:var(--accent);background:rgba(76,201,240,.08);padding:0 4px;border-radius:4px}
 
+  /* ---------- scheduling lens (M4) ---------- */
+  body.lens-sc #main,body.lens-sc #events{display:none}
+  #scMain{display:none;flex:1 1 auto;min-height:0;
+    grid-template-columns:minmax(300px,1fr) minmax(320px,1.25fr);
+    grid-template-rows:minmax(0,1fr) minmax(0,auto);gap:6px}
+  body.lens-sc #scMain{display:grid}
+  #scPendPanel{grid-column:1;grid-row:1 / span 2;display:flex;flex-direction:column;min-height:0}
+  #scNodePanel{grid-column:2;grid-row:1;display:flex;flex-direction:column;min-height:0}
+  #scActPanel{grid-column:2;grid-row:2;display:flex;flex-direction:column;min-height:0}
+  #scPendList{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:6px;scrollbar-width:thin;min-height:0}
+  #scPendEmpty{color:var(--faint);font-size:.84rem;line-height:1.5;padding:6px 2px}
+  #scPendEmpty code{font-family:var(--mono);font-size:.78rem;color:var(--accent);background:rgba(76,201,240,.08);padding:0 4px;border-radius:4px}
+  .scPend{border:1px solid rgba(245,185,66,.5);border-radius:9px;background:var(--panel2);padding:7px 9px;
+    flex:0 0 auto;animation:pop .35s cubic-bezier(.2,1.6,.4,1)}
+  .scPend .sph{display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:.86rem}
+  .scPend .sph .sdot{width:.55rem;height:.55rem;border-radius:50%;background:var(--pend);animation:blink 1s infinite;flex:0 0 auto}
+  .scPend .sph b{color:var(--txt);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .scPend .sph .sns{color:var(--faint);font-size:.72rem;margin-left:auto;white-space:nowrap}
+  .scPend .srsn{margin-top:5px;font-family:var(--mono);font-size:.76rem;line-height:1.5;color:var(--warn);
+    background:rgba(245,185,66,.06);border-radius:6px;padding:4px 7px;word-break:break-word}
+  .scPend .srsn .rk{color:var(--faint)}
+  .scPend .swait{margin-top:3px;font-size:.68rem;color:var(--faint);font-family:var(--mono)}
+  #scNodeList{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:6px;scrollbar-width:thin;min-height:0}
+  .scNode{border:1px solid var(--line);border-radius:9px;background:var(--panel2);padding:7px 9px;flex:0 0 auto}
+  .scNode.notready{border-color:rgba(255,107,107,.55)}
+  .scNode .snn{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-family:var(--mono);font-size:.82rem;color:var(--dim)}
+  .scNode .snn b{color:var(--txt);font-weight:600}
+  .scNode .snrole{font-size:.68rem;color:var(--faint)}
+  .scNode .snalloc{margin-left:auto;font-family:var(--mono);font-size:.74rem;color:var(--dim);white-space:nowrap}
+  .scNode .snalloc .av{color:var(--accent)}
+  .scTaints{margin-top:5px;display:flex;flex-wrap:wrap;gap:5px}
+  .scTaints .ttl{font-size:.68rem;color:var(--faint);align-self:center;margin-right:2px}
+  .badge.tnt{background:rgba(123,108,246,.15);color:#a89cf8;border:1px solid rgba(123,108,246,.45);
+    font-family:var(--mono);font-weight:600}
+  .badge.tnt.exec{background:rgba(255,107,107,.14);color:#ff9d9d;border-color:rgba(255,107,107,.55)}
+  .badge.tnt.none{background:none;color:var(--faint);border:1px dashed var(--line)}
+  #scActRows{flex:1;display:flex;flex-direction:column;gap:8px;overflow-y:auto;scrollbar-width:thin;min-height:0}
+  .scKpis{display:flex;gap:10px;flex-wrap:wrap}
+  .scKpi{flex:1 1 6rem;border:1px solid var(--line2);border-radius:8px;background:var(--panel2);padding:6px 9px;min-width:6rem}
+  .scKpi .kl{font-size:.66rem;letter-spacing:.5px;text-transform:uppercase;color:var(--faint);font-weight:700}
+  .scKpi .kv{font-family:var(--mono);font-size:1.5rem;font-weight:700;color:var(--accent);margin-top:1px;white-space:nowrap}
+  .scKpi .kv.warn{color:var(--warn)}
+  .scKpi .kv.flash{animation:flash 1.1s ease-out}
+  #scActHint{border:1px dashed var(--line);border-radius:8px;padding:7px 9px;color:var(--dim);
+    font-size:.78rem;line-height:1.5;font-family:inherit}
+  #scActHint code{font-family:var(--mono);font-size:.74rem;color:var(--accent);background:rgba(76,201,240,.08);padding:0 4px;border-radius:4px}
+  .scNote{font-size:.76rem;color:var(--dim);line-height:1.5;margin-top:auto;padding-top:6px}
+  .scMeta{font-family:var(--mono);font-size:.7rem;color:var(--faint);margin-top:5px}
+
   @media (max-width:640px){
     body{overflow:auto}
     #main{grid-template-columns:1fr}
@@ -268,6 +317,11 @@
     #cpSvg{min-height:16rem}
     #auditList,#apfRows{max-height:18rem}
     #stGrid{grid-template-columns:1fr;grid-template-rows:auto auto auto auto}
+    #scMain{grid-template-columns:1fr;grid-template-rows:auto auto auto}
+    #scPendPanel{grid-column:1;grid-row:1}
+    #scNodePanel{grid-column:1;grid-row:2}
+    #scActPanel{grid-column:1;grid-row:3}
+    #scPendList,#scNodeList{max-height:18rem}
   }
   @media (prefers-reduced-motion:reduce){
     *{animation:none !important;transition:none !important}
@@ -283,7 +337,7 @@
       <span class="tab active" data-lens="recon">Reconciliation</span>
       <span class="tab" data-lens="cp" title="Control-plane lens — attribution, audit stream, API Priority &amp; Fairness (Module 2)">Control Plane</span>
       <span class="tab" data-lens="storage" title="Storage lens — etcd db size vs quota, NOSPACE alarm state, MVCC revision, apiserver→etcd latency (Module 3)">Storage</span>
-      <span class="tab stub" title="Scheduling lens — unlocks in Module 4">Scheduling<small>M4+</small></span>
+      <span class="tab" data-lens="sched" title="Scheduling lens — Pending pods with FailedScheduling reasons, nodes with allocatable + taints, scheduler activity (Module 4)">Scheduling</span>
       <span class="tab stub" title="Scale lens — unlocks in Module 6">Scale<small>M6+</small></span>
     </nav>
     <div id="hdrRight">
@@ -420,6 +474,33 @@
       </div>
     </div>
   </div>
+
+  <!-- ================= Scheduling Lens (M4) ================= -->
+  <div id="scMain">
+    <div class="panel" id="scPendPanel">
+      <h2>Pending pods <span class="soft">— why is this stuck · PodScheduled=False reason, cluster-wide</span></h2>
+      <div id="scPendList"><div id="scPendEmpty">— probing for Pending pods…</div></div>
+    </div>
+    <div class="panel" id="scNodePanel">
+      <h2>Nodes <span class="soft">— Ready · allocatable cpu/mem · taints (real + fake)</span></h2>
+      <div id="scNodeList"><span style="color:var(--faint);font-size:.82rem">— waiting for node watch…</span></div>
+    </div>
+    <div class="panel" id="scActPanel">
+      <h2>Scheduler activity <span class="soft">— queue depth &amp; schedule attempts</span></h2>
+      <div id="scActRows">
+        <div class="scKpis">
+          <div class="scKpi"><div class="kl">pending / queue depth</div><div class="kv" id="scQ">—</div></div>
+          <div class="scKpi"><div class="kl">schedule attempts</div><div class="kv" id="scAtt">—</div></div>
+          <div class="scKpi"><div class="kl">unschedulable</div><div class="kv" id="scUns">—</div></div>
+        </div>
+        <div id="scActHint"></div>
+        <div class="scNote">The scheduler runs a queue: every Pending pod waits here until a node fits.
+          A pod stuck with an <em>Unschedulable</em> reason has left the active queue for the
+          <em>unschedulable</em> set and is only retried when cluster state changes.</div>
+        <div class="scMeta" id="scActMeta"></div>
+      </div>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -553,12 +634,12 @@ startWatch({
   onList:function(items){
     S.nodes={};
     items.forEach(function(n){S.nodes[n.metadata.name]=n});
-    renderCluster();
+    renderCluster();renderScNodes();
   },
   onEvent:function(type,obj){
     if(type==='DELETED')delete S.nodes[obj.metadata.name];
     else{S.nodes[obj.metadata.name]=obj;attribute('node',type,obj)}
-    renderCluster();
+    renderCluster();renderScNodes();
   }
 });
 
@@ -1313,17 +1394,198 @@ async function stTick(){
   catch(e){stSetVal('stRzR','unreachable','false')}
 }
 
+/* ==================================================================
+   Scheduling Lens (M4)
+   Sources, all same-origin through kubectl proxy:
+   - NODES: reuses the existing cluster-wide nodes watch (S.nodes) — Ready
+     condition, allocatable cpu/mem, taints (NoSchedule / NoExecute).
+   - PENDING PODS: a cluster-wide field-selector POLL (status.phase=Pending),
+     NOT a watch — the 5 long-lived streams are already spent (see
+     pollNamespaces). Each pod's FailedScheduling reason is read straight from
+     its PodScheduled condition (status=False, reason=Unschedulable, message).
+   - SCHEDULER ACTIVITY: tries kube-scheduler :10259 /metrics via pod proxy for
+     scheduler_pending_pods / scheduler_schedule_attempts_total. kubeadm/kind
+     bind the scheduler to 127.0.0.1 so the proxy usually can't reach it —
+     degrade gracefully: queue depth is derived from the live Pending count.
+   ================================================================== */
+var SC={timer:null,polls:0,pending:{},metricsOn:null,attempts:null,attempts0:null,schedPod:null};
+function scStart(){if(SC.timer)return;scTick();SC.timer=setInterval(scTick,2500);renderScNodes()}
+function scStop(){if(SC.timer){clearInterval(SC.timer);SC.timer=null}}
+function scPodScheduledReason(p){
+  var conds=(p.status&&p.status.conditions)||[];
+  for(var i=0;i<conds.length;i++){
+    var c=conds[i];
+    if(c.type==='PodScheduled'&&c.status==='False')
+      return {reason:c.reason||'Unschedulable',message:c.message||''};
+  }
+  return null;
+}
+function scAge(ts){
+  var t=Date.parse(ts||0);if(!t)return '';
+  return age(t);
+}
+function renderScPending(items){
+  var host=$('scPendList');
+  var real=items.filter(function(p){
+    if(p.metadata.deletionTimestamp)return false;
+    return (p.status&&p.status.phase)==='Pending'&&!(p.spec&&p.spec.nodeName);
+  });
+  var uns=0;
+  if(!real.length){
+    host.innerHTML='<div id="scPendEmpty">— no Pending pods · the scheduler has placed everything. '+
+      'Seed one to see it here: a pod whose <code>requests.cpu</code> exceeds every node, or a '+
+      '<code>nodeSelector</code> that matches nothing.</div>';
+  }else{
+    var seen={};
+    real.sort(function(a,b){return (a.metadata.namespace+'/'+a.metadata.name)<(b.metadata.namespace+'/'+b.metadata.name)?-1:1});
+    real.forEach(function(p){
+      var key=p.metadata.namespace+'/'+p.metadata.name;
+      var id='scp-'+key.replace(/[^a-zA-Z0-9-]/g,'_');seen[id]=1;
+      var el=document.getElementById(id);
+      if(!el){
+        if(host.querySelector('#scPendEmpty'))host.innerHTML='';
+        el=document.createElement('div');el.className='scPend';el.id=id;
+        el.innerHTML='<div class="sph"><span class="sdot"></span><b></b><span class="sns"></span></div>'+
+          '<div class="srsn"></div><div class="swait"></div>';
+        host.appendChild(el);
+      }
+      var r=scPodScheduledReason(p);
+      if(r)uns++;
+      el.querySelector('b').textContent=p.metadata.name;
+      el.querySelector('.sph b').title=p.metadata.name;
+      el.querySelector('.sns').textContent='ns: '+p.metadata.namespace;
+      var rsn=el.querySelector('.srsn');
+      if(r){
+        rsn.innerHTML='<span class="rk">'+esc(r.reason)+' · </span>'+esc(r.message||'(no message yet — scheduler has not reported)');
+      }else{
+        rsn.innerHTML='<span class="rk">Pending · </span>waiting on the scheduler (no PodScheduled=False condition yet)';
+      }
+      el.querySelector('.swait').textContent='pending '+scAge(p.metadata.creationTimestamp);
+    });
+    /* drop cards for pods no longer pending */
+    Array.prototype.slice.call(host.querySelectorAll('.scPend')).forEach(function(el){
+      if(!seen[el.id])host.removeChild(el);
+    });
+  }
+  $('scQ').textContent=real.length;
+  $('scQ').className='kv'+(real.length?' warn':'');
+  $('scUns').textContent=uns;
+  $('scUns').className='kv'+(uns?' warn':'');
+  $('scActMeta').textContent='poll #'+SC.polls+' · cluster-wide status.phase=Pending';
+}
+function renderScNodes(){
+  if(curLens!=='sched')return;
+  var host=$('scNodeList');
+  var names=Object.keys(S.nodes).sort(function(a,b){
+    var ra=nodeRole(S.nodes[a])==='control-plane'?0:1, rb=nodeRole(S.nodes[b])==='control-plane'?0:1;
+    return ra-rb||(a<b?-1:1);
+  });
+  if(!names.length){host.innerHTML='<span style="color:var(--faint);font-size:.82rem">— no nodes on the watch stream</span>';return}
+  if(host.firstChild&&host.firstChild.tagName==='SPAN')host.innerHTML='';
+  names.forEach(function(nm){
+    var n=S.nodes[nm],el=document.getElementById('scn-'+nm);
+    if(!el){
+      el=document.createElement('div');el.className='scNode';el.id='scn-'+nm;
+      el.innerHTML='<div class="snn"><b></b><span class="snrole"></span>'+
+        '<span class="badge notready" style="display:none">NotReady</span>'+
+        '<span class="snalloc"></span></div><div class="scTaints"></div>';
+      el.querySelector('b').textContent=nm;
+      host.appendChild(el);
+    }
+    host.appendChild(el);
+    var ready=nodeReady(n);
+    el.classList.toggle('notready',!ready);
+    el.querySelector('.badge.notready').style.display=ready?'none':'';
+    el.querySelector('.snrole').textContent='· '+nodeRole(n);
+    var al=(n.status&&n.status.allocatable)||{};
+    el.querySelector('.snalloc').innerHTML='<span class="av">'+esc(al.cpu||'?')+'</span> cpu · <span class="av">'+esc(al.memory||'?')+'</span> mem';
+    var tw=el.querySelector('.scTaints'),taints=(n.spec&&n.spec.taints)||[];
+    tw.innerHTML='<span class="ttl">taints:</span>';
+    if(!taints.length){
+      var b=document.createElement('span');b.className='badge tnt none';b.textContent='none';tw.appendChild(b);
+    }else{
+      taints.forEach(function(t){
+        var b=document.createElement('span');
+        var exec=t.effect==='NoExecute';
+        b.className='badge tnt'+(exec||t.effect==='NoSchedule'?(exec?' exec':''):'');
+        b.textContent=t.key+(t.value?'='+t.value:'')+':'+t.effect;
+        b.title=b.textContent;
+        tw.appendChild(b);
+      });
+    }
+  });
+  Array.prototype.slice.call(host.querySelectorAll('.scNode')).forEach(function(el){
+    if(names.indexOf(el.id.slice(4))<0)host.removeChild(el);
+  });
+}
+function scParseSchedMetrics(txt){
+  var pending=null,attempts=0,any=false;
+  txt.split('\n').forEach(function(l){
+    if(l.charCodeAt(0)!==115)return;                 /* fast path: only 's…' lines */
+    if(l.lastIndexOf('scheduler_pending_pods',0)===0){
+      var mv=/\s([0-9.eE+-]+)\s*$/.exec(l);if(mv){pending=(pending||0)+parseFloat(mv[1]);any=true}
+    }else if(l.lastIndexOf('scheduler_schedule_attempts_total',0)===0){
+      var mv2=/\s([0-9.eE+-]+)\s*$/.exec(l);if(mv2){attempts+=parseFloat(mv2[1]);any=true}
+    }
+  });
+  return any?{pending:pending,attempts:attempts}:null;
+}
+async function scPollSchedMetrics(){
+  /* try scheduler /metrics via pod proxy; kubeadm/kind bind 127.0.0.1 → usually refused */
+  if(SC.metricsOn===false)return null;
+  try{
+    if(!SC.schedPod){
+      var pr=await fetch('/api/v1/namespaces/kube-system/pods?labelSelector=component%3Dkube-scheduler&limit=5');
+      var pj=await pr.json();if(pj.items&&pj.items.length)SC.schedPod=pj.items[0].metadata.name;
+    }
+    if(!SC.schedPod)throw new Error('no scheduler pod');
+    var r=await fetch('/api/v1/namespaces/kube-system/pods/https:'+SC.schedPod+':10259/proxy/metrics');
+    if(!r.ok)throw new Error('HTTP '+r.status);
+    var m=scParseSchedMetrics(await r.text());
+    if(!m)throw new Error('no scheduler metrics');
+    SC.metricsOn=true;return m;
+  }catch(e){SC.metricsOn=false;return null}
+}
+async function scTick(){
+  SC.polls++;
+  /* pending pods, cluster-wide */
+  try{
+    var r=await fetch('/api/v1/pods?fieldSelector=status.phase%3DPending&limit=500');
+    if(r.ok){var j=await r.json();renderScPending(j.items||[])}
+  }catch(e){}
+  renderScNodes();
+  /* scheduler activity */
+  var m=await scPollSchedMetrics();
+  var att=$('scAtt'),hint=$('scActHint');
+  if(m){
+    if(SC.attempts0===null)SC.attempts0=m.attempts;
+    var d=Math.round(m.attempts-SC.attempts0);
+    var old=att.textContent;att.textContent=d.toLocaleString();
+    if(old!==att.textContent){att.classList.remove('flash');void att.offsetWidth;att.classList.add('flash')}
+    if(m.pending!=null){$('scQ').textContent=Math.round(m.pending);}
+    hint.innerHTML='live from <code>kube-scheduler :10259/metrics</code> · '+
+      '<code>scheduler_pending_pods</code> + <code>scheduler_schedule_attempts_total</code> (delta since lens opened).';
+  }else{
+    att.textContent='n/a';
+    hint.innerHTML='scheduler <code>/metrics</code> not reachable through the proxy — on kubeadm/kind the '+
+      'scheduler binds <code>--bind-address=127.0.0.1</code>, so <code>:10259</code> is refused from the '+
+      'API server pod proxy. <b>Queue depth</b> above is derived live from the cluster-wide Pending count, '+
+      'which is the same signal <code>scheduler_pending_pods</code> reports.';
+  }
+}
+
 /* ---------- lens switching ---------- */
-var LENS_TITLE={recon:'· Reconciliation Lens',cp:'· Control-Plane Lens',storage:'· Storage Lens'};
+var LENS_TITLE={recon:'· Reconciliation Lens',cp:'· Control-Plane Lens',storage:'· Storage Lens',sched:'· Scheduling Lens'};
 var LENS_HINT={
   recon:'Live view of your REAL cluster — every panel below is fed by raw <code>watch</code> streams from the API server, the same firehose every controller drinks from.',
   cp:'The control plane itself, live: <code>managedFields</code> attribution pulses, the API server audit stream, and <code>/metrics</code> APF gauges — all same-origin through kubectl proxy.',
-  storage:'etcd, live: db size vs quota and the MVCC revision from etcd’s <code>:2381/metrics</code> (pod proxy), alarm state from its <code>/health</code>, and the apiserver’s own etcd request latencies.'
+  storage:'etcd, live: db size vs quota and the MVCC revision from etcd’s <code>:2381/metrics</code> (pod proxy), alarm state from its <code>/health</code>, and the apiserver’s own etcd request latencies.',
+  sched:'Scheduling, live: every <b>Pending</b> pod with its <code>FailedScheduling</code> reason (the "why is this stuck" board), every node’s Ready state · allocatable · taints, and the scheduler’s queue depth — all same-origin through kubectl proxy.'
 };
 function setLens(l){
   if(l===curLens)return;
   curLens=l;
-  document.body.className=l==='cp'?'lens-cp':l==='storage'?'lens-st':'';
+  document.body.className=l==='cp'?'lens-cp':l==='storage'?'lens-st':l==='sched'?'lens-sc':'';
   Array.prototype.slice.call(document.querySelectorAll('#tabs .tab[data-lens]')).forEach(function(t){
     t.classList.toggle('active',t.dataset.lens===l);
   });
@@ -1334,6 +1596,7 @@ function setLens(l){
     apfStart();
   }else apfStop();
   if(l==='storage')stStart();else stStop();
+  if(l==='sched')scStart();else scStop();
 }
 $('tabs').addEventListener('click',function(e){
   var t=e.target.closest('.tab');
@@ -1343,7 +1606,7 @@ $('tabs').addEventListener('click',function(e){
 /* ------------------------------------------------------------------ boot */
 renderNsSel();
 startNsWatches();
-window.__xray={S:S,AUD:AUD,APF:APF,ST:ST,setLens:setLens};   /* test hook */
+window.__xray={S:S,AUD:AUD,APF:APF,ST:ST,SC:SC,setLens:setLens};   /* test hook */
 })();
 </script>
 </body>

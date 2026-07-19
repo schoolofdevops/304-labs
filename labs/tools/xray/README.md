@@ -25,6 +25,21 @@ A live visualizer for YOUR real cluster. One evolving tool, one lens per module.
   - **L3 · APF meters**: `/metrics` polled every 2.5s — seats in use / queued /
     rejected per API Priority & Fairness priority level. This is the M2 lab's
     centerpiece: run a bounded LIST storm and watch the bars move.
+- **Scheduling Lens (M4):** why pods land where they do — three panels, live:
+  - **Pending pods** (the "why is this stuck" board): every `Pending` pod cluster-wide
+    with its `FailedScheduling` reason read straight from the pod's `PodScheduled=False`
+    condition message (e.g. `0/5 nodes are available: … 4 Insufficient cpu`). A bound pod
+    never appears here. Sourced from a cluster-wide `status.phase=Pending` field-selector
+    **poll** (not a watch — the 5 long-lived streams are already spent).
+  - **Nodes**: every node, real and KWOK-fake, with its Ready condition, allocatable
+    cpu/mem, and taints — `NoSchedule` (purple) and `NoExecute` (red) highlighted. Reuses
+    the existing cluster-wide nodes watch, no new stream.
+  - **Scheduler activity**: queue depth (Pending count), unschedulable count, and
+    schedule attempts. It first tries `kube-scheduler :10259/metrics`
+    (`scheduler_pending_pods`, `scheduler_schedule_attempts_total`) via the pod proxy;
+    on kubeadm/kind the scheduler binds `--bind-address=127.0.0.1` so `:10259` is refused
+    — the panel says so and falls back to the live Pending count (the same signal
+    `scheduler_pending_pods` reports). Runs against the M4 KWOK profile (`labs/m4/kwok-setup.sh`).
 
 ## Run it
 

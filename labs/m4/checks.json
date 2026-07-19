@@ -1,0 +1,58 @@
+{
+  "checks": [
+    {
+      "id": "core-internals-cluster-up",
+      "describe": "core-internals profile is up: kind context kind-kubeadv-core answers and the real worker node exists (CLUSTER KEPT — M5 continues on it)",
+      "run": "kubectl --context kind-kubeadv-core get nodes",
+      "assert": {
+        "contains": "kubeadv-core-worker"
+      },
+      "weight": 1
+    },
+    {
+      "id": "kwok-controller-running",
+      "describe": "the in-cluster KWOK controller Deployment is present and reporting available replicas (kwok-setup.sh deployed it)",
+      "run": "kubectl --context kind-kubeadv-core -n kube-system get deploy kwok-controller -o jsonpath='avail={.status.availableReplicas}'; echo",
+      "assert": {
+        "matches": "avail=[1-9][0-9]*"
+      },
+      "weight": 2
+    },
+    {
+      "id": "three-fake-nodes-present",
+      "describe": "KWOK created three fake nodes (labelled type=kwok) that report Ready to the scheduler",
+      "run": "N=$(kubectl --context kind-kubeadv-core get nodes -l type=kwok --no-headers 2>/dev/null | grep -c ' Ready'); echo \"fakenodes=${N}\"",
+      "assert": {
+        "contains": "fakenodes=3"
+      },
+      "weight": 3
+    },
+    {
+      "id": "pending-pod-reports-unschedulable-reason",
+      "describe": "a pod requesting more CPU than any node stays Pending with PodScheduled=False and the scheduler's Unschedulable reason (self-seeded and removed by the check; tolerates the kwok taint so all nodes are candidates)",
+      "run": "kubectl --context kind-kubeadv-core create namespace m4-check --dry-run=client -o yaml | kubectl --context kind-kubeadv-core apply -f - >/dev/null; printf 'apiVersion: v1\\nkind: Pod\\nmetadata:\\n  name: toobigcheck\\nspec:\\n  tolerations:\\n  - key: kwok.x-k8s.io/node\\n    operator: Exists\\n    effect: NoSchedule\\n  containers:\\n  - name: pause\\n    image: registry.k8s.io/pause:3.9\\n    resources:\\n      requests:\\n        cpu: \"9000\"\\n' | kubectl --context kind-kubeadv-core apply -n m4-check -f - >/dev/null; sleep 5; kubectl --context kind-kubeadv-core get pod toobigcheck -n m4-check -o jsonpath='{range .status.conditions[?(@.type==\"PodScheduled\")]}scheduled={.status} reason={.reason}{end}'; echo; kubectl --context kind-kubeadv-core delete namespace m4-check --wait=false >/dev/null",
+      "assert": {
+        "matches": "scheduled=False reason=Unschedulable"
+      },
+      "weight": 3
+    },
+    {
+      "id": "failedscheduling-message-names-the-cause",
+      "describe": "the scheduler's FailedScheduling message on an over-requesting pod names Insufficient cpu — the operator-readable cause (self-seeded and removed by the check)",
+      "run": "kubectl --context kind-kubeadv-core create namespace m4-check2 --dry-run=client -o yaml | kubectl --context kind-kubeadv-core apply -f - >/dev/null; printf 'apiVersion: v1\\nkind: Pod\\nmetadata:\\n  name: reasoncheck\\nspec:\\n  tolerations:\\n  - key: kwok.x-k8s.io/node\\n    operator: Exists\\n    effect: NoSchedule\\n  containers:\\n  - name: pause\\n    image: registry.k8s.io/pause:3.9\\n    resources:\\n      requests:\\n        cpu: \"9000\"\\n' | kubectl --context kind-kubeadv-core apply -n m4-check2 -f - >/dev/null; sleep 5; kubectl --context kind-kubeadv-core get events -n m4-check2 --field-selector reason=FailedScheduling -o jsonpath='{range .items[*]}{.message}{\"\\n\"}{end}' | head -1; kubectl --context kind-kubeadv-core delete namespace m4-check2 --wait=false >/dev/null",
+      "assert": {
+        "contains": "Insufficient cpu"
+      },
+      "weight": 2
+    },
+    {
+      "id": "taintmanager-eviction-reachable",
+      "describe": "a custom NoExecute taint on a fake node makes the TaintManager evict a non-tolerating pod running there (self-seeded and removed by the check; proves the eviction path is live)",
+      "run": "FN=$(kubectl --context kind-kubeadv-core get nodes -l type=kwok -o jsonpath='{.items[0].metadata.name}' 2>/dev/null); if [ -z \"$FN\" ]; then echo 'NO-FAKE-NODE'; else kubectl --context kind-kubeadv-core create namespace m4-check3 --dry-run=client -o yaml | kubectl --context kind-kubeadv-core apply -f - >/dev/null; printf 'apiVersion: v1\\nkind: Pod\\nmetadata:\\n  name: evictcheck\\nspec:\\n  nodeName: %s\\n  tolerations:\\n  - key: kwok.x-k8s.io/node\\n    operator: Exists\\n    effect: NoSchedule\\n  containers:\\n  - name: pause\\n    image: registry.k8s.io/pause:3.9\\n' \"$FN\" | kubectl --context kind-kubeadv-core apply -n m4-check3 -f - >/dev/null; kubectl --context kind-kubeadv-core wait --for=condition=Ready pod/evictcheck -n m4-check3 --timeout=30s >/dev/null 2>&1 || true; kubectl --context kind-kubeadv-core taint node \"$FN\" m4evict=check:NoExecute --overwrite >/dev/null; sleep 5; kubectl --context kind-kubeadv-core get events -n m4-check3 --field-selector reason=TaintManagerEviction -o jsonpath='{range .items[*]}{.reason}{\"\\n\"}{end}' | head -1; kubectl --context kind-kubeadv-core taint node \"$FN\" m4evict- >/dev/null 2>&1 || true; kubectl --context kind-kubeadv-core delete namespace m4-check3 --wait=false >/dev/null; fi",
+      "assert": {
+        "contains": "TaintManagerEviction"
+      },
+      "weight": 3
+    }
+  ]
+}
