@@ -10,7 +10,7 @@ XRAY_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CTX="$(kubectl config current-context 2>/dev/null || echo '<none>')"
 
 echo "┌─────────────────────────────────────────────────────────────"
-echo "│  Cluster X-Ray · Reconciliation · Control-Plane · Storage · Scheduling lenses"
+echo "│  Cluster X-Ray · Reconciliation · Control-Plane · Storage · Scheduling · Extensions lenses"
 echo "│"
 echo "│  context : ${CTX}"
 echo "│           (expected: kind-kubeadv-core — switch with"

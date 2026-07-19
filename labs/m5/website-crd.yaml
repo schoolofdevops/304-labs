@@ -1,0 +1,66 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: websites.kubeadv.io
+spec:
+  group: kubeadv.io
+  scope: Namespaced
+  names:
+    kind: Website
+    plural: websites
+    singular: website
+    shortNames: [wsite]
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              required: [host]
+              properties:
+                host:
+                  type: string
+                image:
+                  type: string
+                  default: nginx:1.27-alpine
+                replicas:
+                  type: integer
+                  minimum: 1
+                  default: 1
+              x-kubernetes-validations:
+                - rule: "self.replicas <= 5"
+                  message: "replicas may not exceed 5 (guardrail enforced at admission)"
+            status:
+              type: object
+              properties:
+                readyReplicas:
+                  type: integer
+                conditions:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      type: { type: string }
+                      status: { type: string }
+                      reason: { type: string }
+                      message: { type: string }
+                      lastTransitionTime: { type: string }
+      subresources:
+        status: {}
+      additionalPrinterColumns:
+        - name: Host
+          type: string
+          jsonPath: .spec.host
+        - name: Replicas
+          type: integer
+          jsonPath: .spec.replicas
+        - name: Ready
+          type: integer
+          jsonPath: .status.readyReplicas
+        - name: Age
+          type: date
+          jsonPath: .metadata.creationTimestamp

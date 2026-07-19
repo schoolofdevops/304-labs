@@ -1,0 +1,32 @@
+{
+  "checks": [
+    {
+      "id": "crd-declares-status-subresource",
+      "describe": "the Website CRD declares a status subresource (spec/status split — the operator owns status, users own spec)",
+      "run": "kubectl --context kind-kubeadv-core get crd websites.kubeadv.io -o jsonpath='status-subresource={.spec.versions[0].subresources.status}'; echo",
+      "assert": { "matches": "status-subresource=(\\{\\}|map\\[\\])" },
+      "weight": 2
+    },
+    {
+      "id": "crd-declares-cel-validation-rule",
+      "describe": "the CRD carries the in-process CEL guardrail self.replicas <= 5 as an x-kubernetes-validations rule",
+      "run": "kubectl --context kind-kubeadv-core get crd websites.kubeadv.io -o yaml | grep -A2 'x-kubernetes-validations:' | grep 'rule:'",
+      "assert": { "contains": "self.replicas <= 5" },
+      "weight": 3
+    },
+    {
+      "id": "structural-schema-prunes-unknown-field",
+      "describe": "the structural schema prunes a field it does not declare and defaults image (self-seeded with --validate=false in m5-dd-check, then removed)",
+      "run": "kubectl --context kind-kubeadv-core create namespace m5-dd-check --dry-run=client -o yaml | kubectl --context kind-kubeadv-core apply -f - >/dev/null; printf 'apiVersion: kubeadv.io/v1alpha1\\nkind: Website\\nmetadata: {name: prunechk, namespace: m5-dd-check}\\nspec: {host: p.io, replicas: 1, bogusField: drop-me}\\n' | kubectl --context kind-kubeadv-core apply --validate=false -f - >/dev/null; kubectl --context kind-kubeadv-core -n m5-dd-check get website prunechk -o jsonpath='{.spec}'; echo; kubectl --context kind-kubeadv-core delete namespace m5-dd-check --wait=false >/dev/null 2>&1",
+      "assert": { "matches": "^\\{\"host\":\"p.io\",\"image\":\"nginx:1.27-alpine\",\"replicas\":1\\}" },
+      "weight": 3
+    },
+    {
+      "id": "crd-declares-printer-columns",
+      "describe": "the CRD advertises additionalPrinterColumns so kubectl get websites shows Host/Replicas/Ready (a built-in-like UX for the custom kind)",
+      "run": "kubectl --context kind-kubeadv-core get crd websites.kubeadv.io -o jsonpath='{range .spec.versions[0].additionalPrinterColumns[*]}{.name}{\" \"}{end}'; echo",
+      "assert": { "contains": "Host Replicas Ready" },
+      "weight": 2
+    }
+  ]
+}

@@ -1,0 +1,46 @@
+{
+  "checks": [
+    {
+      "id": "core-internals-cluster-up",
+      "describe": "core-internals profile is up: kind context kind-kubeadv-core answers and the real worker node exists (CLUSTER KEPT — M6 continues on it)",
+      "run": "kubectl --context kind-kubeadv-core get nodes",
+      "assert": { "contains": "kubeadv-core-worker" },
+      "weight": 1
+    },
+    {
+      "id": "website-crd-established",
+      "describe": "the Website CRD is installed and Established (the API server serves the kubeadv.io/v1alpha1 Website kind)",
+      "run": "kubectl --context kind-kubeadv-core get crd websites.kubeadv.io -o jsonpath='established={.status.conditions[?(@.type==\"Established\")].status}'; echo",
+      "assert": { "contains": "established=True" },
+      "weight": 2
+    },
+    {
+      "id": "crd-served-in-discovery",
+      "describe": "the custom kind is a first-class API resource: discovery lists websites in the kubeadv.io group",
+      "run": "kubectl --context kind-kubeadv-core api-resources --api-group=kubeadv.io",
+      "assert": { "matches": "^websites\\s+wsite\\s+kubeadv.io/v1alpha1" },
+      "weight": 2
+    },
+    {
+      "id": "cel-validation-rejects-oversized-replicas",
+      "describe": "the CRD's CEL rule rejects a Website asking for more than 5 replicas at admission (self-seeded; the apply is expected to fail with the custom message)",
+      "run": "kubectl --context kind-kubeadv-core create namespace m5-check --dry-run=client -o yaml | kubectl --context kind-kubeadv-core apply -f - >/dev/null; printf 'apiVersion: kubeadv.io/v1alpha1\\nkind: Website\\nmetadata: {name: celcheck, namespace: m5-check}\\nspec: {host: c.io, replicas: 9}\\n' | kubectl --context kind-kubeadv-core apply -f - 2>&1 | head -1; kubectl --context kind-kubeadv-core delete namespace m5-check --wait=false >/dev/null 2>&1",
+      "assert": { "contains": "replicas may not exceed 5" },
+      "weight": 2
+    },
+    {
+      "id": "operator-reconciles-website-to-ready",
+      "describe": "the operator turns a Website into a running Deployment+Service and writes status Ready=True (self-seeded in m5-check2, reconciled by the running operator, then removed)",
+      "run": "kubectl --context kind-kubeadv-core create namespace m5-check2 --dry-run=client -o yaml | kubectl --context kind-kubeadv-core apply -f - >/dev/null; printf 'apiVersion: kubeadv.io/v1alpha1\\nkind: Website\\nmetadata: {name: chk, namespace: m5-check2}\\nspec: {host: chk.io, replicas: 1}\\n' | kubectl --context kind-kubeadv-core apply -f - >/dev/null; for i in $(seq 1 20); do R=$(kubectl --context kind-kubeadv-core -n m5-check2 get website chk -o jsonpath='{.status.conditions[?(@.type==\"Ready\")].status}' 2>/dev/null); [ \"$R\" = \"True\" ] && break; sleep 3; done; echo \"ready=${R}\"; kubectl --context kind-kubeadv-core delete namespace m5-check2 --wait=false >/dev/null 2>&1",
+      "assert": { "contains": "ready=True" },
+      "weight": 3
+    },
+    {
+      "id": "child-owned-by-website-with-finalizer",
+      "describe": "the operator stamps the child Deployment with a controller ownerReference to its Website and puts the cleanup finalizer on the Website (self-seeded in m5-check3, then removed)",
+      "run": "kubectl --context kind-kubeadv-core create namespace m5-check3 --dry-run=client -o yaml | kubectl --context kind-kubeadv-core apply -f - >/dev/null; printf 'apiVersion: kubeadv.io/v1alpha1\\nkind: Website\\nmetadata: {name: own, namespace: m5-check3}\\nspec: {host: own.io, replicas: 1}\\n' | kubectl --context kind-kubeadv-core apply -f - >/dev/null; for i in $(seq 1 15); do O=$(kubectl --context kind-kubeadv-core -n m5-check3 get deploy web-own -o jsonpath='{.metadata.ownerReferences[?(@.controller==true)].kind}' 2>/dev/null); [ -n \"$O\" ] && break; sleep 3; done; F=$(kubectl --context kind-kubeadv-core -n m5-check3 get website own -o jsonpath='{.metadata.finalizers[0]}' 2>/dev/null); echo \"owner=${O} finalizer=${F}\"; kubectl --context kind-kubeadv-core delete namespace m5-check3 --wait=false >/dev/null 2>&1",
+      "assert": { "matches": "owner=Website finalizer=kubeadv.io/cleanup" },
+      "weight": 3
+    }
+  ]
+}

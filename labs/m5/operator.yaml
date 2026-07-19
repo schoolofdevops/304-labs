@@ -1,0 +1,135 @@
+apiVersion: v1
+kind: Namespace
+metadata: { name: m5-system }
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata: { name: website-operator, namespace: m5-system }
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata: { name: website-operator }
+rules:
+  - apiGroups: ["kubeadv.io"]
+    resources: ["websites"]
+    verbs: ["get", "list", "watch", "update", "patch"]
+  - apiGroups: ["kubeadv.io"]
+    resources: ["websites/status"]
+    verbs: ["get", "update", "patch"]
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: [""]
+    resources: ["services"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata: { name: website-operator }
+roleRef: { apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: website-operator }
+subjects:
+  - { kind: ServiceAccount, name: website-operator, namespace: m5-system }
+---
+apiVersion: v1
+kind: ConfigMap
+metadata: { name: website-operator-src, namespace: m5-system }
+data:
+  reconcile.sh: |
+    #!/bin/bash
+    # Website operator — a reconcile loop, nothing more. Watch desired Websites,
+    # make the cluster match: one Deployment + one Service per Website. Level-triggered.
+    set -uo pipefail
+    FIN="kubeadv.io/cleanup"
+    log(){ echo "$(date -u +%H:%M:%S) $*"; }
+
+    ensure_children(){
+      local ns=$1 name=$2 image=$3 replicas=$4 uid=$5
+      kubectl apply -f - >/dev/null <<YAML
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: web-$name
+      namespace: $ns
+      labels: { app.kubernetes.io/managed-by: website-operator, kubeadv.io/website: "$name" }
+      ownerReferences:
+      - { apiVersion: kubeadv.io/v1alpha1, kind: Website, name: $name, uid: $uid, controller: true, blockOwnerDeletion: true }
+    spec:
+      replicas: $replicas
+      selector: { matchLabels: { kubeadv.io/website: "$name" } }
+      template:
+        metadata: { labels: { kubeadv.io/website: "$name" } }
+        spec:
+          containers:
+          - { name: web, image: "$image", ports: [ { containerPort: 80 } ] }
+    ---
+    apiVersion: v1
+    kind: Service
+    metadata:
+      name: web-$name
+      namespace: $ns
+      labels: { app.kubernetes.io/managed-by: website-operator, kubeadv.io/website: "$name" }
+      ownerReferences:
+      - { apiVersion: kubeadv.io/v1alpha1, kind: Website, name: $name, uid: $uid, controller: true, blockOwnerDeletion: true }
+    spec:
+      selector: { kubeadv.io/website: "$name" }
+      ports: [ { port: 80, targetPort: 80 } ]
+    YAML
+    }
+
+    reconcile_one(){
+      local ns=$1 name=$2
+      local raw uid host image replicas del fins
+      raw=$(kubectl -n "$ns" get website "$name" -o 'jsonpath={.metadata.uid}|{.spec.host}|{.spec.image}|{.spec.replicas}|{.metadata.deletionTimestamp}|{.metadata.finalizers}') || return
+      IFS='|' read -r uid host image replicas del fins <<<"$raw"
+
+      # Deletion path: finalizer holds the object until we clean up.
+      if [ -n "$del" ]; then
+        log "reconcile $ns/$name: deleting -> cleanup children, drop finalizer"
+        kubectl -n "$ns" delete deploy,svc -l "kubeadv.io/website=$name" --ignore-not-found >/dev/null
+        kubectl -n "$ns" patch website "$name" --type=merge -p '{"metadata":{"finalizers":[]}}' >/dev/null
+        return
+      fi
+
+      # Ensure our finalizer is present before we create anything.
+      if [[ "$fins" != *"$FIN"* ]]; then
+        log "reconcile $ns/$name: add finalizer"
+        kubectl -n "$ns" patch website "$name" --type=merge -p "{\"metadata\":{\"finalizers\":[\"$FIN\"]}}" >/dev/null
+      fi
+
+      ensure_children "$ns" "$name" "$image" "$replicas" "$uid"
+
+      local ready
+      ready=$(kubectl -n "$ns" get deploy "web-$name" -o jsonpath='{.status.readyReplicas}' 2>/dev/null); ready=${ready:-0}
+      local cs="False"; [ "$ready" -ge "$replicas" ] 2>/dev/null && cs="True"
+      kubectl -n "$ns" patch website "$name" --subresource=status --type=merge \
+        -p "{\"status\":{\"readyReplicas\":$ready,\"conditions\":[{\"type\":\"Ready\",\"status\":\"$cs\",\"reason\":\"Reconciled\",\"message\":\"$ready/$replicas replicas ready\",\"lastTransitionTime\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}]}}" >/dev/null
+      log "reconcile $ns/$name: host=$host replicas=$replicas ready=$ready condition=$cs"
+    }
+
+    log "website-operator starting: level-triggered reconcile every 5s"
+    while true; do
+      while IFS=' ' read -r ns name; do
+        [ -z "$ns" ] && continue
+        reconcile_one "$ns" "$name"
+      done < <(kubectl get websites -A -o 'jsonpath={range .items[*]}{.metadata.namespace} {.metadata.name}{"\n"}{end}')
+      sleep 5
+    done
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: website-operator, namespace: m5-system, labels: { app: website-operator } }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: website-operator } }
+  template:
+    metadata: { labels: { app: website-operator } }
+    spec:
+      serviceAccountName: website-operator
+      containers:
+        - name: operator
+          image: alpine/k8s:1.31.3
+          command: ["/bin/bash", "/src/reconcile.sh"]
+          volumeMounts:
+            - { name: src, mountPath: /src }
+      volumes:
+        - { name: src, configMap: { name: website-operator-src } }

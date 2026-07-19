@@ -305,6 +305,49 @@
   .scNote{font-size:.76rem;color:var(--dim);line-height:1.5;margin-top:auto;padding-top:6px}
   .scMeta{font-family:var(--mono);font-size:.7rem;color:var(--faint);margin-top:5px}
 
+  /* ---------- extensions lens (M5) ---------- */
+  body.lens-ext #main,body.lens-ext #events{display:none}
+  #extMain{display:none;flex:1 1 auto;min-height:0;
+    grid-template-columns:minmax(280px,1fr) minmax(320px,1.3fr);
+    grid-template-rows:minmax(0,1fr) minmax(0,1fr);gap:6px}
+  body.lens-ext #extMain{display:grid}
+  #extCrdPanel{grid-column:1;grid-row:1 / span 2;display:flex;flex-direction:column;min-height:0}
+  #extCrPanel{grid-column:2;grid-row:1;display:flex;flex-direction:column;min-height:0}
+  #extOwnPanel{grid-column:2;grid-row:2;display:flex;flex-direction:column;min-height:0}
+  #extCrdList,#extCrList,#extOwnList{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:6px;scrollbar-width:thin;min-height:0}
+  .extEmpty{color:var(--faint);font-size:.82rem;line-height:1.5;padding:6px 2px}
+  .extEmpty code{font-family:var(--mono);font-size:.76rem;color:var(--accent);background:rgba(76,201,240,.08);padding:0 4px;border-radius:4px}
+  .extCrd{border:1px solid var(--line);border-radius:9px;background:var(--panel2);padding:7px 9px;flex:0 0 auto}
+  .extCrd.custom{border-color:rgba(76,201,240,.5)}
+  .extCrd .cn{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-family:var(--mono);font-size:.82rem;color:var(--dim)}
+  .extCrd .cn b{color:var(--txt);font-weight:600}
+  .extCrd .cmeta{margin-top:4px;font-family:var(--mono);font-size:.72rem;color:var(--faint);display:flex;flex-wrap:wrap;gap:8px}
+  .badge.estab{background:rgba(80,220,150,.14);color:#7fe0aa;border:1px solid rgba(80,220,150,.5);font-family:var(--mono);font-weight:600}
+  .badge.estab.no{background:rgba(255,107,107,.14);color:#ff9d9d;border-color:rgba(255,107,107,.5)}
+  .badge.grp{background:rgba(123,108,246,.15);color:#a89cf8;border:1px solid rgba(123,108,246,.4);font-family:var(--mono)}
+  .extCr{border:1px solid rgba(76,201,240,.4);border-radius:9px;background:var(--panel2);padding:7px 9px;flex:0 0 auto;
+    animation:pop .35s cubic-bezier(.2,1.6,.4,1)}
+  .extCr.term{border-color:rgba(245,185,66,.6)}
+  .extCr .crh{display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:.84rem}
+  .extCr .crh b{color:var(--txt);font-weight:600}
+  .extCr .crh .crk{color:var(--accent2);font-weight:600}
+  .extCr .crh .crns{color:var(--faint);font-size:.72rem;margin-left:auto}
+  .extCr .crspec{margin-top:4px;font-family:var(--mono);font-size:.74rem;color:var(--dim);word-break:break-word}
+  .extCr .crcond{margin-top:5px;display:flex;flex-wrap:wrap;gap:5px}
+  .badge.cond{font-family:var(--mono);font-weight:600;background:rgba(80,220,150,.14);color:#7fe0aa;border:1px solid rgba(80,220,150,.45)}
+  .badge.cond.no{background:rgba(245,185,66,.12);color:var(--warn);border-color:rgba(245,185,66,.5)}
+  .badge.fin{background:rgba(245,185,66,.14);color:var(--warn);border:1px solid rgba(245,185,66,.5);font-family:var(--mono);font-weight:600}
+  .badge.termb{background:rgba(255,107,107,.14);color:#ff9d9d;border:1px solid rgba(255,107,107,.55);font-family:var(--mono);font-weight:600}
+  .extOwn{border:1px solid var(--line);border-radius:9px;background:var(--panel2);padding:7px 9px;flex:0 0 auto}
+  .extOwn .oh{font-family:var(--mono);font-size:.8rem;color:var(--txt);font-weight:600}
+  .extOwn .otree{margin-top:5px;font-family:var(--mono);font-size:.74rem;color:var(--dim);line-height:1.6}
+  .extOwn .otree .child{padding-left:12px;color:var(--dim)}
+  .extOwn .otree .child .arm{color:var(--faint)}
+  .extOwn .fins{margin-top:5px;display:flex;flex-wrap:wrap;gap:5px;align-items:center}
+  .extOwn .fins .ttl{font-size:.68rem;color:var(--faint)}
+  .extNote{font-size:.76rem;color:var(--dim);line-height:1.5;margin-top:auto;padding-top:6px}
+  .extMeta{font-family:var(--mono);font-size:.7rem;color:var(--faint);margin-top:5px}
+
   @media (max-width:640px){
     body{overflow:auto}
     #main{grid-template-columns:1fr}
@@ -322,6 +365,11 @@
     #scNodePanel{grid-column:1;grid-row:2}
     #scActPanel{grid-column:1;grid-row:3}
     #scPendList,#scNodeList{max-height:18rem}
+    #extMain{grid-template-columns:1fr;grid-template-rows:auto auto auto}
+    #extCrdPanel{grid-column:1;grid-row:1}
+    #extCrPanel{grid-column:1;grid-row:2}
+    #extOwnPanel{grid-column:1;grid-row:3}
+    #extCrdList,#extCrList,#extOwnList{max-height:18rem}
   }
   @media (prefers-reduced-motion:reduce){
     *{animation:none !important;transition:none !important}
@@ -338,6 +386,7 @@
       <span class="tab" data-lens="cp" title="Control-plane lens — attribution, audit stream, API Priority &amp; Fairness (Module 2)">Control Plane</span>
       <span class="tab" data-lens="storage" title="Storage lens — etcd db size vs quota, NOSPACE alarm state, MVCC revision, apiserver→etcd latency (Module 3)">Storage</span>
       <span class="tab" data-lens="sched" title="Scheduling lens — Pending pods with FailedScheduling reasons, nodes with allocatable + taints, scheduler activity (Module 4)">Scheduling</span>
+      <span class="tab" data-lens="ext" title="Extensions lens — CRDs (group/scope/versions/Established), custom resources with their status.conditions, ownerReference child trees and pending finalizers (Module 5)">Extensions</span>
       <span class="tab stub" title="Scale lens — unlocks in Module 6">Scale<small>M6+</small></span>
     </nav>
     <div id="hdrRight">
@@ -499,6 +548,24 @@
           <em>unschedulable</em> set and is only retried when cluster state changes.</div>
         <div class="scMeta" id="scActMeta"></div>
       </div>
+    </div>
+  </div>
+
+  <!-- ================= Extensions Lens (M5) ================= -->
+  <div id="extMain">
+    <div class="panel" id="extCrdPanel">
+      <h2>CRDs <span class="soft">— group · scope · versions · Established (custom kinds highlighted)</span></h2>
+      <div id="extCrdList"><div class="extEmpty">— reading CustomResourceDefinitions…</div></div>
+    </div>
+    <div class="panel" id="extCrPanel">
+      <h2>Custom resources <span class="soft">— your CRs with spec &amp; status.conditions, live</span></h2>
+      <div id="extCrList"><div class="extEmpty">— no custom (non-system) CRs yet. Install a CRD and create one:
+        <code>kubectl apply -f labs/m5/website-crd.yaml</code>, then a <code>Website</code>.</div></div>
+    </div>
+    <div class="panel" id="extOwnPanel">
+      <h2>Ownership &amp; finalizers <span class="soft">— ownerReference child trees · pending finalizers · Terminating</span></h2>
+      <div id="extOwnList"><div class="extEmpty">— shows which Deployments/Services each CR owns (garbage-collected
+        with the parent) and any object held in <code>Terminating</code> by a finalizer.</div></div>
     </div>
   </div>
 </div>
@@ -1574,18 +1641,179 @@ async function scTick(){
   }
 }
 
+/* ==================================================================
+   Extensions Lens (M5)
+   Sources, all same-origin through kubectl proxy:
+   - CRDs: /apis/apiextensions.k8s.io/v1/customresourcedefinitions —
+     group, scope, versions, the Established condition.
+   - CUSTOM RESOURCES: for each CRD whose group is NOT a system group
+     (*.k8s.io / *.kubernetes.io), list its stored version's objects and
+     read spec + status.conditions. This surfaces the course's
+     websites.kubeadv.io CRs without hard-coding them.
+   - OWNERSHIP / FINALIZERS: for each CR's namespace, read Deployments &
+     Services and match ownerReferences[].uid == cr.uid to draw the child
+     tree the garbage collector honours; surface finalizers + Terminating.
+   ================================================================== */
+var EXT={timer:null};
+function extStart(){if(EXT.timer)return;extTick();EXT.timer=setInterval(extTick,3000)}
+function extStop(){if(EXT.timer){clearInterval(EXT.timer);EXT.timer=null}}
+function extIsCustomGroup(g){
+  return !!g && !/(^|\.)k8s\.io$/.test(g) && !/(^|\.)kubernetes\.io$/.test(g);
+}
+function extEstablished(c){
+  var conds=(c.status&&c.status.conditions)||[];
+  for(var i=0;i<conds.length;i++){if(conds[i].type==='Established')return conds[i].status==='True'}
+  return false;
+}
+function extSpecSummary(spec){
+  if(!spec||typeof spec!=='object')return '';
+  var out=[];
+  Object.keys(spec).forEach(function(k){
+    var v=spec[k];
+    if(v===null||typeof v==='object')return;
+    out.push(esc(k)+'='+esc(String(v)));
+  });
+  return out.slice(0,5).join('  ');
+}
+async function extTick(){
+  try{
+    var r=await fetch('/apis/apiextensions.k8s.io/v1/customresourcedefinitions?limit=500');
+    if(!r.ok){$('extCrdList').innerHTML='<div class="extEmpty">CRD list HTTP '+r.status+'</div>';return}
+    var b=await r.json();
+    var crds=(b.items||[]).slice();
+    crds.sort(function(a,b){
+      var ac=extIsCustomGroup(a.spec.group)?0:1, bc=extIsCustomGroup(b.spec.group)?0:1;
+      if(ac!==bc)return ac-bc;
+      return a.metadata.name<b.metadata.name?-1:1;
+    });
+    renderExtCrds(crds);
+    var custom=crds.filter(function(c){return extIsCustomGroup(c.spec.group)});
+    var crs=[];
+    for(var i=0;i<custom.length;i++){
+      var c=custom[i];
+      var vers=c.spec.versions||[];
+      var ver=vers.filter(function(v){return v.storage})[0]||vers[0];
+      if(!ver||ver.served===false)ver=vers.filter(function(v){return v.served})[0]||ver;
+      if(!ver)continue;
+      var path='/apis/'+c.spec.group+'/'+ver.name+'/'+c.spec.names.plural;
+      try{
+        var rr=await fetch(path+'?limit=200');
+        if(!rr.ok)continue;
+        var bb=await rr.json();
+        (bb.items||[]).forEach(function(it){crs.push({kind:c.spec.names.kind,obj:it})});
+      }catch(e){}
+    }
+    renderExtCrs(crs);
+    await renderExtOwnership(crs);
+    $('extCrdMeta')&&($('extCrdMeta').textContent='');
+  }catch(e){$('extCrdList').innerHTML='<div class="extEmpty">'+esc(String(e))+'</div>'}
+}
+function renderExtCrds(crds){
+  var host=$('extCrdList');host.innerHTML='';
+  if(!crds.length){host.innerHTML='<div class="extEmpty">— no CRDs installed.</div>';return}
+  crds.forEach(function(c){
+    var custom=extIsCustomGroup(c.spec.group);
+    var est=extEstablished(c);
+    var vers=(c.spec.versions||[]).map(function(v){return v.name+(v.storage?'*':'')}).join(', ');
+    var el=document.createElement('div');
+    el.className='extCrd'+(custom?' custom':'');
+    el.innerHTML='<div class="cn"><b>'+esc(c.spec.names.kind)+'</b>'+
+      '<span class="badge grp">'+esc(c.spec.group)+'</span>'+
+      '<span class="badge estab'+(est?'':' no')+'">'+(est?'Established':'not established')+'</span></div>'+
+      '<div class="cmeta"><span>'+esc(c.spec.scope)+'</span><span>versions: '+esc(vers)+' <small>(*=storage)</small></span>'+
+      '<span>'+esc(c.spec.names.plural)+'.'+esc(c.spec.group)+'</span></div>';
+    host.appendChild(el);
+  });
+}
+function renderExtCrs(crs){
+  var host=$('extCrList');
+  if(!crs.length){
+    host.innerHTML='<div class="extEmpty">— no custom (non-system) CRs yet. Install a CRD and create one:'+
+      ' <code>kubectl apply -f labs/m5/website-crd.yaml</code>, then a <code>Website</code>.</div>';
+    return;
+  }
+  host.innerHTML='';
+  crs.sort(function(a,b){
+    var an=(a.obj.metadata.namespace||'')+'/'+a.obj.metadata.name, bn=(b.obj.metadata.namespace||'')+'/'+b.obj.metadata.name;
+    return an<bn?-1:1;
+  });
+  crs.forEach(function(x){
+    var o=x.obj, m=o.metadata||{};
+    var term=!!m.deletionTimestamp;
+    var conds=((o.status&&o.status.conditions)||[]);
+    var fins=(m.finalizers||[]);
+    var el=document.createElement('div');
+    el.className='extCr'+(term?' term':'');
+    var condHtml=conds.map(function(c){
+      var ok=c.status==='True';
+      return '<span class="badge cond'+(ok?'':' no')+'" title="'+esc(c.message||'')+'">'+esc(c.type)+'='+esc(c.status)+'</span>';
+    }).join('');
+    if(!conds.length)condHtml='<span class="badge cond no">no status yet</span>';
+    var finHtml=fins.map(function(f){return '<span class="badge fin">⛔ '+esc(f)+'</span>'}).join('');
+    el.innerHTML='<div class="crh"><span class="crk">'+esc(x.kind)+'</span><b>'+esc(m.name)+'</b>'+
+      (m.namespace?'<span class="crns">ns: '+esc(m.namespace)+'</span>':'')+'</div>'+
+      '<div class="crspec">'+(extSpecSummary(o.spec)||'<span style="color:var(--faint)">(no scalar spec fields)</span>')+'</div>'+
+      '<div class="crcond">'+condHtml+finHtml+(term?'<span class="badge termb">Terminating</span>':'')+'</div>';
+    host.appendChild(el);
+  });
+}
+async function renderExtOwnership(crs){
+  var host=$('extOwnList');
+  var owners=crs.filter(function(x){return !!x.obj.metadata.namespace});
+  if(!owners.length){
+    host.innerHTML='<div class="extEmpty">— shows which Deployments/Services each CR owns (garbage-collected'+
+      ' with the parent) and any object held in <code>Terminating</code> by a finalizer.</div>';
+    return;
+  }
+  /* one fetch of deployments + services per distinct namespace */
+  var nss={};owners.forEach(function(x){nss[x.obj.metadata.namespace]=1});
+  var children={};  /* ns -> [{kind,name,ownerUid}] */
+  var keys=Object.keys(nss);
+  for(var i=0;i<keys.length;i++){
+    var ns=keys[i];children[ns]=[];
+    try{
+      var dr=await fetch('/apis/apps/v1/namespaces/'+ns+'/deployments?limit=200');
+      if(dr.ok){(await dr.json()).items.forEach(function(d){
+        (d.metadata.ownerReferences||[]).forEach(function(or){children[ns].push({kind:'Deployment',name:d.metadata.name,uid:or.uid})});
+      })}
+      var sr=await fetch('/api/v1/namespaces/'+ns+'/services?limit=200');
+      if(sr.ok){(await sr.json()).items.forEach(function(s){
+        (s.metadata.ownerReferences||[]).forEach(function(or){children[ns].push({kind:'Service',name:s.metadata.name,uid:or.uid})});
+      })}
+    }catch(e){}
+  }
+  host.innerHTML='';
+  owners.forEach(function(x){
+    var o=x.obj, m=o.metadata, ns=m.namespace;
+    var kids=(children[ns]||[]).filter(function(c){return c.uid===m.uid});
+    var el=document.createElement('div');el.className='extOwn';
+    var tree=kids.length
+      ? kids.map(function(c){return '<div class="child"><span class="arm">└─ owns →</span> '+esc(c.kind)+'/'+esc(c.name)+'</div>'}).join('')
+      : '<div class="child" style="color:var(--faint)">└─ no owned children found</div>';
+    var fins=(m.finalizers||[]);
+    var finHtml=fins.length
+      ? '<span class="ttl">finalizers:</span>'+fins.map(function(f){return '<span class="badge fin">'+esc(f)+'</span>'}).join('')
+      : '<span class="ttl">no finalizers</span>';
+    if(m.deletionTimestamp)finHtml+='<span class="badge termb">Terminating — held by finalizer</span>';
+    el.innerHTML='<div class="oh">'+esc(x.kind)+'/'+esc(m.name)+'</div>'+
+      '<div class="otree">'+tree+'</div><div class="fins">'+finHtml+'</div>';
+    host.appendChild(el);
+  });
+}
+
 /* ---------- lens switching ---------- */
-var LENS_TITLE={recon:'· Reconciliation Lens',cp:'· Control-Plane Lens',storage:'· Storage Lens',sched:'· Scheduling Lens'};
+var LENS_TITLE={recon:'· Reconciliation Lens',cp:'· Control-Plane Lens',storage:'· Storage Lens',sched:'· Scheduling Lens',ext:'· Extensions Lens'};
 var LENS_HINT={
   recon:'Live view of your REAL cluster — every panel below is fed by raw <code>watch</code> streams from the API server, the same firehose every controller drinks from.',
   cp:'The control plane itself, live: <code>managedFields</code> attribution pulses, the API server audit stream, and <code>/metrics</code> APF gauges — all same-origin through kubectl proxy.',
   storage:'etcd, live: db size vs quota and the MVCC revision from etcd’s <code>:2381/metrics</code> (pod proxy), alarm state from its <code>/health</code>, and the apiserver’s own etcd request latencies.',
-  sched:'Scheduling, live: every <b>Pending</b> pod with its <code>FailedScheduling</code> reason (the "why is this stuck" board), every node’s Ready state · allocatable · taints, and the scheduler’s queue depth — all same-origin through kubectl proxy.'
+  sched:'Scheduling, live: every <b>Pending</b> pod with its <code>FailedScheduling</code> reason (the "why is this stuck" board), every node’s Ready state · allocatable · taints, and the scheduler’s queue depth — all same-origin through kubectl proxy.',
+  ext:'Extensions, live: every <b>CRD</b> with its group · scope · versions · <code>Established</code> state, your <b>custom resources</b> with their <code>status.conditions</code>, and the <code>ownerReference</code> child trees and <code>finalizers</code> that drive garbage collection and stuck deletions — all same-origin through kubectl proxy.'
 };
 function setLens(l){
   if(l===curLens)return;
   curLens=l;
-  document.body.className=l==='cp'?'lens-cp':l==='storage'?'lens-st':l==='sched'?'lens-sc':'';
+  document.body.className=l==='cp'?'lens-cp':l==='storage'?'lens-st':l==='sched'?'lens-sc':l==='ext'?'lens-ext':'';
   Array.prototype.slice.call(document.querySelectorAll('#tabs .tab[data-lens]')).forEach(function(t){
     t.classList.toggle('active',t.dataset.lens===l);
   });
@@ -1597,6 +1825,7 @@ function setLens(l){
   }else apfStop();
   if(l==='storage')stStart();else stStop();
   if(l==='sched')scStart();else scStop();
+  if(l==='ext')extStart();else extStop();
 }
 $('tabs').addEventListener('click',function(e){
   var t=e.target.closest('.tab');
@@ -1606,7 +1835,7 @@ $('tabs').addEventListener('click',function(e){
 /* ------------------------------------------------------------------ boot */
 renderNsSel();
 startNsWatches();
-window.__xray={S:S,AUD:AUD,APF:APF,ST:ST,SC:SC,setLens:setLens};   /* test hook */
+window.__xray={S:S,AUD:AUD,APF:APF,ST:ST,SC:SC,EXT:EXT,setLens:setLens,extTick:extTick};   /* test hook */
 })();
 </script>
 </body>
