@@ -1,0 +1,46 @@
+{
+  "checks": [
+    {
+      "id": "kwok-scale-control-plane-healthy",
+      "describe": "the dedicated kwok-scale control plane is up and answering /healthz (kwokctl cluster, separate from core-internals)",
+      "run": "kubectl --context kwok-kwok-scale get --raw /healthz 2>&1; echo",
+      "assert": { "contains": "ok" },
+      "weight": 1
+    },
+    {
+      "id": "fake-nodes-present-at-scale",
+      "describe": "the cluster has been grown to a meaningful node count (>= 500 fake nodes) — the fleet is cheap",
+      "run": "kubectl --context kwok-kwok-scale get --raw /metrics 2>/dev/null | grep '^apiserver_storage_objects{resource=\"nodes\"}'",
+      "assert": { "matches": "resource=\"nodes\"\\} ([5-9][0-9][0-9]|[1-9][0-9]{3,})" },
+      "weight": 2
+    },
+    {
+      "id": "pods-loaded-toward-the-knee",
+      "describe": "enough pods exist to make a full list expensive (>= 1000) — the read-amplification load",
+      "run": "kubectl --context kwok-kwok-scale get --raw /metrics 2>/dev/null | grep '^apiserver_storage_objects{resource=\"pods\"}'",
+      "assert": { "matches": "resource=\"pods\"\\} ([1-9][0-9]{3,})" },
+      "weight": 2
+    },
+    {
+      "id": "events-tracked-in-etcd",
+      "describe": "events are counted in the etcd object board (apiserver_storage_objects) — the high-churn kind that outruns pods at scale (the OpenAI lesson)",
+      "run": "kubectl --context kwok-kwok-scale get --raw /metrics 2>/dev/null | grep '^apiserver_storage_objects{resource=\"events\"}'",
+      "assert": { "matches": "resource=\"events\"\\} [0-9]+" },
+      "weight": 2
+    },
+    {
+      "id": "list-pods-latency-histogram-exposed",
+      "describe": "the API server exposes its own cluster-scope LIST pods latency histogram — the server-side view that stays low while clients wait on payload",
+      "run": "kubectl --context kwok-kwok-scale get --raw /metrics 2>/dev/null | grep 'apiserver_request_duration_seconds_count.*resource=\"pods\",scope=\"cluster\",subresource=\"\",verb=\"LIST\"'",
+      "assert": { "contains": "verb=\"LIST\"" },
+      "weight": 3
+    },
+    {
+      "id": "apf-priority-levels-present",
+      "describe": "API Priority & Fairness priority levels exist (leader-election + node-high have their own shares) — the load shield that keeps critical traffic alive at scale",
+      "run": "kubectl --context kwok-kwok-scale get prioritylevelconfigurations -o name 2>/dev/null | tr '\\n' ' '; echo",
+      "assert": { "matches": "leader-election" },
+      "weight": 2
+    }
+  ]
+}

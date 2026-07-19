@@ -1,0 +1,32 @@
+{
+  "checks": [
+    {
+      "id": "list-latency-histogram-buckets-readable",
+      "describe": "the cluster-scope LIST pods histogram exposes cumulative le buckets — the raw material for a real p99 by bucket math",
+      "run": "kubectl --context kwok-kwok-scale get --raw /metrics 2>/dev/null | grep 'apiserver_request_duration_seconds_bucket.*resource=\"pods\",scope=\"cluster\",subresource=\"\",verb=\"LIST\"' | grep 'le=\"+Inf\"'",
+      "assert": { "contains": "le=\"+Inf\"" },
+      "weight": 3
+    },
+    {
+      "id": "pagination-returns-continue-token",
+      "describe": "a chunked list returns a bounded page plus a continue token (the etcd-revision cursor) — pagination internals",
+      "run": "kubectl --context kwok-kwok-scale get pods -A --chunk-size=500 -o json 2>/dev/null | python3 -c 'import sys,json; d=json.load(sys.stdin); print(\"items=%d continue=%s\" % (len(d[\"items\"]), \"yes\" if d[\"metadata\"].get(\"continue\") else \"no\"))'",
+      "assert": { "matches": "items=500 continue=yes" },
+      "weight": 3
+    },
+    {
+      "id": "storage-object-board-lists-kinds",
+      "describe": "apiserver_storage_objects gives a per-kind etcd inventory (pods, nodes, leases, events) — the etcd-pressure forecast board",
+      "run": "kubectl --context kwok-kwok-scale get --raw /metrics 2>/dev/null | grep -c '^apiserver_storage_objects{'; echo done",
+      "assert": { "matches": "^[1-9][0-9]*" },
+      "weight": 2
+    },
+    {
+      "id": "apf-protects-critical-levels",
+      "describe": "APF defines dedicated priority levels for node-high and leader-election so a list flood cannot starve heartbeats or leader election",
+      "run": "kubectl --context kwok-kwok-scale get prioritylevelconfigurations -o name 2>/dev/null | tr '\\n' ' '; echo",
+      "assert": { "contains": "node-high" },
+      "weight": 2
+    }
+  ]
+}
