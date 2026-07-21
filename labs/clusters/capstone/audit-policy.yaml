@@ -1,0 +1,30 @@
+apiVersion: audit.k8s.io/v1
+kind: Policy
+# capstone audit policy — broad capture for incident forensics.
+# The learner uses audit evidence to diagnose faults, so we capture more.
+omitStages:
+  - RequestReceived
+rules:
+  # APF objects — capture full request body (throttling fault diagnosis)
+  - level: Request
+    resources:
+      - group: flowcontrol.apiserver.k8s.io
+        resources: ["flowschemas", "prioritylevelconfigurations"]
+  # CRD objects — capture body (operator fault diagnosis)
+  - level: Request
+    resources:
+      - group: kubeadv.io
+        resources: ["websites"]
+  # Kueue objects — capture body (queue fault diagnosis)
+  - level: Request
+    resources:
+      - group: kueue.x-k8s.io
+        resources: ["clusterqueues", "localqueues", "workloads", "resourceflavors"]
+  # ConfigMap writes — capture body (operator ConfigMap deletion evidence)
+  - level: Request
+    resources:
+      - group: ""
+        resources: ["configmaps"]
+    verbs: ["create", "update", "patch", "delete"]
+  # Everything else: who did what, when, from where — no bodies
+  - level: Metadata

@@ -1,0 +1,92 @@
+apiVersion: v1
+data:
+  reconcile.sh: |
+    #!/bin/bash
+    # Website operator — a reconcile loop, nothing more. Watch desired Websites,
+    # make the cluster match: one Deployment + one Service per Website. Level-triggered.
+    set -uo pipefail
+    FIN="kubeadv.io/cleanup"
+    log(){ echo "$(date -u +%H:%M:%S) $*"; }
+
+    ensure_children(){
+      local ns=$1 name=$2 image=$3 replicas=$4 uid=$5
+      kubectl apply -f - >/dev/null <<YAML
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: web-$name
+      namespace: $ns
+      labels: { app.kubernetes.io/managed-by: website-operator, kubeadv.io/website: "$name" }
+      ownerReferences:
+      - { apiVersion: kubeadv.io/v1alpha1, kind: Website, name: $name, uid: $uid, controller: true, blockOwnerDeletion: true }
+    spec:
+      replicas: $replicas
+      selector: { matchLabels: { kubeadv.io/website: "$name" } }
+      template:
+        metadata: { labels: { kubeadv.io/website: "$name" } }
+        spec:
+          containers:
+          - { name: web, image: "$image", ports: [ { containerPort: 80 } ] }
+    ---
+    apiVersion: v1
+    kind: Service
+    metadata:
+      name: web-$name
+      namespace: $ns
+      labels: { app.kubernetes.io/managed-by: website-operator, kubeadv.io/website: "$name" }
+      ownerReferences:
+      - { apiVersion: kubeadv.io/v1alpha1, kind: Website, name: $name, uid: $uid, controller: true, blockOwnerDeletion: true }
+    spec:
+      selector: { kubeadv.io/website: "$name" }
+      ports: [ { port: 80, targetPort: 80 } ]
+    YAML
+    }
+
+    reconcile_one(){
+      local ns=$1 name=$2
+      local raw uid host image replicas del fins
+      raw=$(kubectl -n "$ns" get website "$name" -o 'jsonpath={.metadata.uid}|{.spec.host}|{.spec.image}|{.spec.replicas}|{.metadata.deletionTimestamp}|{.metadata.finalizers}') || return
+      IFS='|' read -r uid host image replicas del fins <<<"$raw"
+
+      # Deletion path: finalizer holds the object until we clean up.
+      if [ -n "$del" ]; then
+        log "reconcile $ns/$name: deleting -> cleanup children, drop finalizer"
+        kubectl -n "$ns" delete deploy,svc -l "kubeadv.io/website=$name" --ignore-not-found >/dev/null
+        kubectl -n "$ns" patch website "$name" --type=merge -p '{"metadata":{"finalizers":[]}}' >/dev/null
+        return
+      fi
+
+      # Ensure our finalizer is present before we create anything.
+      if [[ "$fins" != *"$FIN"* ]]; then
+        log "reconcile $ns/$name: add finalizer"
+        kubectl -n "$ns" patch website "$name" --type=merge -p "{\"metadata\":{\"finalizers\":[\"$FIN\"]}}" >/dev/null
+      fi
+
+      ensure_children "$ns" "$name" "$image" "$replicas" "$uid"
+
+      local ready
+      ready=$(kubectl -n "$ns" get deploy "web-$name" -o jsonpath='{.status.readyReplicas}' 2>/dev/null); ready=${ready:-0}
+      local cs="False"; [ "$ready" -ge "$replicas" ] 2>/dev/null && cs="True"
+      kubectl -n "$ns" patch website "$name" --subresource=status --type=merge \
+        -p "{\"status\":{\"readyReplicas\":$ready,\"conditions\":[{\"type\":\"Ready\",\"status\":\"$cs\",\"reason\":\"Reconciled\",\"message\":\"$ready/$replicas replicas ready\",\"lastTransitionTime\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}]}}" >/dev/null
+      log "reconcile $ns/$name: host=$host replicas=$replicas ready=$ready condition=$cs"
+    }
+
+    log "website-operator starting: level-triggered reconcile every 5s"
+    while true; do
+      while IFS=' ' read -r ns name; do
+        [ -z "$ns" ] && continue
+        reconcile_one "$ns" "$name"
+      done < <(kubectl get websites -A -o 'jsonpath={range .items[*]}{.metadata.namespace} {.metadata.name}{"\n"}{end}')
+      sleep 5
+    done
+kind: ConfigMap
+metadata:
+  annotations:
+    kubectl.kubernetes.io/last-applied-configuration: |
+      {"apiVersion":"v1","data":{"reconcile.sh":"#!/bin/bash\n# Website operator — a reconcile loop, nothing more. Watch desired Websites,\n# make the cluster match: one Deployment + one Service per Website. Level-triggered.\nset -uo pipefail\nFIN=\"kubeadv.io/cleanup\"\nlog(){ echo \"$(date -u +%H:%M:%S) $*\"; }\n\nensure_children(){\n  local ns=$1 name=$2 image=$3 replicas=$4 uid=$5\n  kubectl apply -f - \u003e/dev/null \u003c\u003cYAML\napiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: web-$name\n  namespace: $ns\n  labels: { app.kubernetes.io/managed-by: website-operator, kubeadv.io/website: \"$name\" }\n  ownerReferences:\n  - { apiVersion: kubeadv.io/v1alpha1, kind: Website, name: $name, uid: $uid, controller: true, blockOwnerDeletion: true }\nspec:\n  replicas: $replicas\n  selector: { matchLabels: { kubeadv.io/website: \"$name\" } }\n  template:\n    metadata: { labels: { kubeadv.io/website: \"$name\" } }\n    spec:\n      containers:\n      - { name: web, image: \"$image\", ports: [ { containerPort: 80 } ] }\n---\napiVersion: v1\nkind: Service\nmetadata:\n  name: web-$name\n  namespace: $ns\n  labels: { app.kubernetes.io/managed-by: website-operator, kubeadv.io/website: \"$name\" }\n  ownerReferences:\n  - { apiVersion: kubeadv.io/v1alpha1, kind: Website, name: $name, uid: $uid, controller: true, blockOwnerDeletion: true }\nspec:\n  selector: { kubeadv.io/website: \"$name\" }\n  ports: [ { port: 80, targetPort: 80 } ]\nYAML\n}\n\nreconcile_one(){\n  local ns=$1 name=$2\n  local raw uid host image replicas del fins\n  raw=$(kubectl -n \"$ns\" get website \"$name\" -o 'jsonpath={.metadata.uid}|{.spec.host}|{.spec.image}|{.spec.replicas}|{.metadata.deletionTimestamp}|{.metadata.finalizers}') || return\n  IFS='|' read -r uid host image replicas del fins \u003c\u003c\u003c\"$raw\"\n\n  # Deletion path: finalizer holds the object until we clean up.\n  if [ -n \"$del\" ]; then\n    log \"reconcile $ns/$name: deleting -\u003e cleanup children, drop finalizer\"\n    kubectl -n \"$ns\" delete deploy,svc -l \"kubeadv.io/website=$name\" --ignore-not-found \u003e/dev/null\n    kubectl -n \"$ns\" patch website \"$name\" --type=merge -p '{\"metadata\":{\"finalizers\":[]}}' \u003e/dev/null\n    return\n  fi\n\n  # Ensure our finalizer is present before we create anything.\n  if [[ \"$fins\" != *\"$FIN\"* ]]; then\n    log \"reconcile $ns/$name: add finalizer\"\n    kubectl -n \"$ns\" patch website \"$name\" --type=merge -p \"{\\\"metadata\\\":{\\\"finalizers\\\":[\\\"$FIN\\\"]}}\" \u003e/dev/null\n  fi\n\n  ensure_children \"$ns\" \"$name\" \"$image\" \"$replicas\" \"$uid\"\n\n  local ready\n  ready=$(kubectl -n \"$ns\" get deploy \"web-$name\" -o jsonpath='{.status.readyReplicas}' 2\u003e/dev/null); ready=${ready:-0}\n  local cs=\"False\"; [ \"$ready\" -ge \"$replicas\" ] 2\u003e/dev/null \u0026\u0026 cs=\"True\"\n  kubectl -n \"$ns\" patch website \"$name\" --subresource=status --type=merge \\\n    -p \"{\\\"status\\\":{\\\"readyReplicas\\\":$ready,\\\"conditions\\\":[{\\\"type\\\":\\\"Ready\\\",\\\"status\\\":\\\"$cs\\\",\\\"reason\\\":\\\"Reconciled\\\",\\\"message\\\":\\\"$ready/$replicas replicas ready\\\",\\\"lastTransitionTime\\\":\\\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\\\"}]}}\" \u003e/dev/null\n  log \"reconcile $ns/$name: host=$host replicas=$replicas ready=$ready condition=$cs\"\n}\n\nlog \"website-operator starting: level-triggered reconcile every 5s\"\nwhile true; do\n  while IFS=' ' read -r ns name; do\n    [ -z \"$ns\" ] \u0026\u0026 continue\n    reconcile_one \"$ns\" \"$name\"\n  done \u003c \u003c(kubectl get websites -A -o 'jsonpath={range .items[*]}{.metadata.namespace} {.metadata.name}{\"\\n\"}{end}')\n  sleep 5\ndone\n"},"kind":"ConfigMap","metadata":{"annotations":{},"creationTimestamp":"2026-07-21T12:21:22Z","name":"website-operator-src","namespace":"m5-system","resourceVersion":"848","uid":"65b7cf05-d35c-4ba6-abbc-46535ce98618"}}
+  creationTimestamp: "2026-07-21T12:27:35Z"
+  name: website-operator-src
+  namespace: m5-system
+  resourceVersion: "3942"
+  uid: 505f1840-52d3-48e5-855f-0769f2beacdf
