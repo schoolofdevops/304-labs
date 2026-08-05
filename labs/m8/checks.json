@@ -1,0 +1,67 @@
+{
+  "checks": [
+    {
+      "id": "core-internals-cluster-up",
+      "describe": "core-internals profile is up and the worker node exists",
+      "run": "kubectl --context kind-kubeadv-core get nodes",
+      "assert": {
+        "contains": "kubeadv-core-worker"
+      },
+      "weight": 1
+    },
+    {
+      "id": "dra-driver-installed",
+      "describe": "DRA example driver is installed — ResourceSlices exist for gpu.example.com",
+      "run": "kubectl --context kind-kubeadv-core get resourceslices -o jsonpath='{.items[0].driverName}'",
+      "assert": {
+        "contains": "gpu.example.com"
+      },
+      "weight": 2
+    },
+    {
+      "id": "kueue-controller-running",
+      "describe": "Kueue controller manager pod is running in kueue-system namespace",
+      "run": "kubectl --context kind-kubeadv-core -n kueue-system get pods --no-headers --field-selector=status.phase=Running | wc -l | tr -d ' \\n'",
+      "assert": {
+        "matches": "^[1-9]"
+      },
+      "weight": 2
+    },
+    {
+      "id": "resourceclaim-allocated",
+      "describe": "a ResourceClaim requesting a GPU has been allocated by the DRA driver",
+      "run": "kubectl --context kind-kubeadv-core -n m8-lab get resourceclaims --no-headers 2>/dev/null | head -1",
+      "assert": {
+        "contains": "gpu"
+      },
+      "weight": 2
+    },
+    {
+      "id": "cluster-queue-exists",
+      "describe": "ClusterQueue m8-cq is created with GPU resource flavors",
+      "run": "kubectl --context kind-kubeadv-core get clusterqueue m8-cq -o jsonpath='{.metadata.name}' 2>/dev/null",
+      "assert": {
+        "matches": "^m8-cq$"
+      },
+      "weight": 2
+    },
+    {
+      "id": "local-queue-exists",
+      "describe": "LocalQueue m8-lq exists in m8-lab namespace and points to m8-cq",
+      "run": "kubectl --context kind-kubeadv-core -n m8-lab get localqueue m8-lq -o jsonpath='{.spec.clusterQueue}' 2>/dev/null",
+      "assert": {
+        "matches": "^m8-cq$"
+      },
+      "weight": 2
+    },
+    {
+      "id": "job-admitted-by-kueue",
+      "describe": "at least one Job has been admitted by Kueue (Admitted condition True)",
+      "run": "kubectl --context kind-kubeadv-core -n m8-lab get workloads --no-headers 2>/dev/null | head -1",
+      "assert": {
+        "matches": "."
+      },
+      "weight": 3
+    }
+  ]
+}

@@ -1,0 +1,49 @@
+{
+  "checks": [
+    {
+      "id": "deepdive-events-sortable-timeline",
+      "describe": "deep-dive S2: cluster events are queryable sorted by lastTimestamp — the first timeline-reconstruction source",
+      "run": "kubectl --context kind-kubeadv-capstone get events -A --sort-by='.lastTimestamp' --no-headers 2>/dev/null | tail -1",
+      "assert": {
+        "matches": "."
+      },
+      "weight": 2
+    },
+    {
+      "id": "deepdive-pod-creation-timestamps",
+      "describe": "deep-dive S2: pods carry a creationTimestamp — submitted-vs-started reconstruction for the incident timeline",
+      "run": "kubectl --context kind-kubeadv-capstone -n capstone-app get pods -o jsonpath='{.items[0].metadata.creationTimestamp}' 2>/dev/null",
+      "assert": {
+        "matches": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T"
+      },
+      "weight": 1
+    },
+    {
+      "id": "deepdive-node-condition-transitions",
+      "describe": "deep-dive S2: the node Ready condition exposes a lastTransitionTime — when a node changed state on the timeline",
+      "run": "kubectl --context kind-kubeadv-capstone get nodes -o jsonpath='{.items[0].status.conditions[?(@.type==\"Ready\")].lastTransitionTime}' 2>/dev/null",
+      "assert": {
+        "matches": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T"
+      },
+      "weight": 1
+    },
+    {
+      "id": "deepdive-node-taint-evidence",
+      "describe": "deep-dive S4: five-whys root-cause evidence — a node is tainted NoSchedule (the scheduling fault's origin)",
+      "run": "kubectl --context kind-kubeadv-capstone get nodes -o jsonpath='{.items[*].spec.taints[*].effect}' 2>/dev/null",
+      "assert": {
+        "contains": "NoSchedule"
+      },
+      "weight": 2
+    },
+    {
+      "id": "deepdive-etcd-junk-blast-radius",
+      "describe": "deep-dive S3: root-cause evidence — hundreds of junk ConfigMaps in capstone-junk (the etcd-pressure blast radius)",
+      "run": "kubectl --context kind-kubeadv-capstone -n capstone-junk get cm --no-headers 2>/dev/null | wc -l | tr -d ' \\n'",
+      "assert": {
+        "matches": "^[0-9]{3,}$"
+      },
+      "weight": 2
+    }
+  ]
+}

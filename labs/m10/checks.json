@@ -1,0 +1,67 @@
+{
+  "checks": [
+    {
+      "id": "core-internals-cluster-up",
+      "describe": "core-internals profile is up and the worker node exists",
+      "run": "kubectl --context kind-kubeadv-core get nodes",
+      "assert": {
+        "contains": "kubeadv-core-worker"
+      },
+      "weight": 1
+    },
+    {
+      "id": "mcp-server-running",
+      "describe": "MCP server Deployment is Running in m10-lab namespace",
+      "run": "kubectl --context kind-kubeadv-core -n m10-lab get deploy mcp-server -o jsonpath='{.status.readyReplicas}'",
+      "assert": {
+        "matches": "^1$"
+      },
+      "weight": 2
+    },
+    {
+      "id": "ai-agent-sa-exists",
+      "describe": "ServiceAccount ai-agent exists in m10-lab namespace",
+      "run": "kubectl --context kind-kubeadv-core -n m10-lab get sa ai-agent -o jsonpath='{.metadata.name}'",
+      "assert": {
+        "matches": "^ai-agent$"
+      },
+      "weight": 1
+    },
+    {
+      "id": "readonly-clusterrole-bound",
+      "describe": "ClusterRoleBinding grants ai-agent the read-only ClusterRole",
+      "run": "kubectl --context kind-kubeadv-core get clusterrolebinding ai-agent-readonly -o jsonpath='{.subjects[0].name}'",
+      "assert": {
+        "matches": "^ai-agent$"
+      },
+      "weight": 2
+    },
+    {
+      "id": "mcp-read-succeeds",
+      "describe": "MCP tool server accepts read requests (list_pods) — returns 200 with pod data",
+      "run": "POD=$(kubectl --context kind-kubeadv-core -n m10-lab get pod -l app=mcp-server -o jsonpath='{.items[0].metadata.name}'); kubectl --context kind-kubeadv-core -n m10-lab exec $POD -- curl -s -X POST http://localhost:8080 -H 'Content-Type: application/json' -d '{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/call\",\"params\":{\"name\":\"list_pods\",\"arguments\":{\"namespace\":\"m10-lab\"}}}' | python3 -c 'import sys,json; r=json.load(sys.stdin); print(\"ok\" if not r.get(\"result\",{}).get(\"isError\") else \"err\")'",
+      "assert": {
+        "contains": "ok"
+      },
+      "weight": 3
+    },
+    {
+      "id": "mcp-write-denied",
+      "describe": "MCP tool server denies write requests (create_pod) — RBAC returns 403",
+      "run": "POD=$(kubectl --context kind-kubeadv-core -n m10-lab get pod -l app=mcp-server -o jsonpath='{.items[0].metadata.name}'); kubectl --context kind-kubeadv-core -n m10-lab exec $POD -- curl -s -X POST http://localhost:8080 -H 'Content-Type: application/json' -d '{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/call\",\"params\":{\"name\":\"create_pod\",\"arguments\":{\"namespace\":\"m10-lab\",\"name\":\"rogue\",\"image\":\"nginx\"}}}' | python3 -c 'import sys,json; r=json.load(sys.stdin); print(\"denied\" if r.get(\"result\",{}).get(\"isError\") else \"allowed\")'",
+      "assert": {
+        "contains": "denied"
+      },
+      "weight": 3
+    },
+    {
+      "id": "audit-logging-enabled",
+      "describe": "API server audit logging is enabled — audit log file exists on control-plane node",
+      "run": "docker exec kubeadv-core-control-plane ls /var/log/kubernetes/audit/audit.log 2>/dev/null && echo 'exists'",
+      "assert": {
+        "contains": "exists"
+      },
+      "weight": 2
+    }
+  ]
+}

@@ -41,6 +41,20 @@
       "run": "kubectl --context kind-kubeadv-core create namespace m5-check3 --dry-run=client -o yaml | kubectl --context kind-kubeadv-core apply -f - >/dev/null; printf 'apiVersion: kubeadv.io/v1alpha1\\nkind: Website\\nmetadata: {name: own, namespace: m5-check3}\\nspec: {host: own.io, replicas: 1}\\n' | kubectl --context kind-kubeadv-core apply -f - >/dev/null; for i in $(seq 1 15); do O=$(kubectl --context kind-kubeadv-core -n m5-check3 get deploy web-own -o jsonpath='{.metadata.ownerReferences[?(@.controller==true)].kind}' 2>/dev/null); [ -n \"$O\" ] && break; sleep 3; done; F=$(kubectl --context kind-kubeadv-core -n m5-check3 get website own -o jsonpath='{.metadata.finalizers[0]}' 2>/dev/null); echo \"owner=${O} finalizer=${F}\"; kubectl --context kind-kubeadv-core delete namespace m5-check3 --wait=false >/dev/null 2>&1",
       "assert": { "matches": "owner=Website finalizer=kubeadv.io/cleanup" },
       "weight": 3
+    },
+    {
+      "id": "xray-ext-lens-crd-api-source",
+      "describe": "X-Ray Extensions lens (M5) data source: the apiextensions CRD list API the lens reads returns the course's websites.kubeadv.io CRD",
+      "run": "kubectl --context kind-kubeadv-core get --raw '/apis/apiextensions.k8s.io/v1/customresourcedefinitions?limit=500'",
+      "assert": { "contains": "websites.kubeadv.io" },
+      "weight": 1
+    },
+    {
+      "id": "xray-ext-lens-cr-list-source",
+      "describe": "X-Ray Extensions lens (M5) data source: the Website CR stored-version list endpoint the lens walks is served (returns a WebsiteList even when empty), proving the CRD is Established",
+      "run": "kubectl --context kind-kubeadv-core get --raw '/apis/kubeadv.io/v1alpha1/websites'",
+      "assert": { "contains": "\"kind\":\"WebsiteList\"" },
+      "weight": 1
     }
   ]
 }

@@ -1,0 +1,58 @@
+{
+  "checks": [
+    {
+      "id": "deepdive-resourceslice-devices",
+      "describe": "deep-dive S1: the DRA driver publishes named devices in a ResourceSlice — what the Filter step evaluates CEL selectors against",
+      "run": "kubectl --context kind-kubeadv-core get resourceslices -o jsonpath='{.items[0].spec.devices[0].name}' 2>/dev/null",
+      "assert": {
+        "matches": "."
+      },
+      "weight": 2
+    },
+    {
+      "id": "deepdive-deviceclass-selector",
+      "describe": "deep-dive S1: DeviceClass gpu.example.com exists — the deviceClassName a ResourceClaim requests against",
+      "run": "kubectl --context kind-kubeadv-core get deviceclass gpu.example.com -o jsonpath='{.metadata.name}' 2>/dev/null",
+      "assert": {
+        "matches": "^gpu\\.example\\.com$"
+      },
+      "weight": 1
+    },
+    {
+      "id": "deepdive-claim-node-pinned",
+      "describe": "deep-dive S1: an allocated ResourceClaim is node-pinned — its allocation nodeSelector uses matchFields on metadata.name",
+      "run": "kubectl --context kind-kubeadv-core -n m8-lab get resourceclaim -o jsonpath='{.items[*].status.allocation.nodeSelector.nodeSelectorTerms[*].matchFields[*].key}' 2>/dev/null",
+      "assert": {
+        "contains": "metadata.name"
+      },
+      "weight": 3
+    },
+    {
+      "id": "deepdive-workload-admitted",
+      "describe": "deep-dive S4: Kueue's admission algorithm marks a Workload Admitted=True after the quota check passes",
+      "run": "kubectl --context kind-kubeadv-core -n m8-lab get workloads -o jsonpath='{.items[*].status.conditions[?(@.type==\"Admitted\")].status}' 2>/dev/null",
+      "assert": {
+        "contains": "True"
+      },
+      "weight": 2
+    },
+    {
+      "id": "deepdive-clusterqueue-admitted-count",
+      "describe": "deep-dive S10: the ClusterQueue status exposes an admittedWorkloads count — the queue-depth observability signal",
+      "run": "kubectl --context kind-kubeadv-core get clusterqueue m8-cq -o jsonpath='{.status.admittedWorkloads}' 2>/dev/null",
+      "assert": {
+        "matches": "^[0-9]+$"
+      },
+      "weight": 2
+    },
+    {
+      "id": "deepdive-admissioncheck-crd",
+      "describe": "deep-dive S6: the AdmissionCheck CRD is registered — the extension point topology-aware scheduling plugs into",
+      "run": "kubectl --context kind-kubeadv-core get crd admissionchecks.kueue.x-k8s.io -o jsonpath='{.metadata.name}' 2>/dev/null",
+      "assert": {
+        "matches": "^admissionchecks\\.kueue\\.x-k8s\\.io$"
+      },
+      "weight": 1
+    }
+  ]
+}

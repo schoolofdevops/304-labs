@@ -1,0 +1,58 @@
+{
+  "checks": [
+    {
+      "id": "cilium-cluster-up",
+      "describe": "cilium-networking cluster is up with Cilium as CNI (no kube-proxy)",
+      "run": "cilium status --context kind-cilium-networking 2>/dev/null | head -5",
+      "assert": {
+        "contains": "OK"
+      },
+      "weight": 1
+    },
+    {
+      "id": "m7-lab-pods-running",
+      "describe": "backend (2 replicas) and frontend (1 replica) pods are Running in m7-lab namespace",
+      "run": "kubectl --context kind-cilium-networking -n m7-lab get pods --no-headers --field-selector=status.phase=Running | wc -l | tr -d ' \\n'",
+      "assert": {
+        "matches": "^3$"
+      },
+      "weight": 2
+    },
+    {
+      "id": "cilium-endpoints-have-identities",
+      "describe": "Cilium has assigned security identities to m7-lab pods (identity-based policy enforcement)",
+      "run": "kubectl --context kind-cilium-networking -n m7-lab get ciliumendpoints --no-headers 2>/dev/null | wc -l | tr -d ' \\n'",
+      "assert": {
+        "matches": "^3$"
+      },
+      "weight": 2
+    },
+    {
+      "id": "default-deny-policy-exists",
+      "describe": "default-deny-ingress NetworkPolicy is applied in m7-lab",
+      "run": "kubectl --context kind-cilium-networking -n m7-lab get networkpolicy default-deny-ingress -o jsonpath='{.spec.policyTypes[0]}'",
+      "assert": {
+        "contains": "Ingress"
+      },
+      "weight": 2
+    },
+    {
+      "id": "allow-frontend-policy-exists",
+      "describe": "allow-frontend-to-backend NetworkPolicy permits frontend → backend on port 80",
+      "run": "kubectl --context kind-cilium-networking -n m7-lab get networkpolicy allow-frontend-to-backend -o jsonpath='{.spec.ingress[0].ports[0].port}'",
+      "assert": {
+        "matches": "^80$"
+      },
+      "weight": 2
+    },
+    {
+      "id": "frontend-to-backend-allowed",
+      "describe": "frontend can reach backend on port 80 (policy whitelist working)",
+      "run": "FRONTEND=$(kubectl --context kind-cilium-networking -n m7-lab get pod -l app=frontend -o jsonpath='{.items[0].metadata.name}'); kubectl --context kind-cilium-networking -n m7-lab exec $FRONTEND -- curl -s -o /dev/null -w '%{http_code}' --connect-timeout 5 http://backend",
+      "assert": {
+        "matches": "^200$"
+      },
+      "weight": 3
+    }
+  ]
+}

@@ -71,6 +71,15 @@
         "contains": "flow_schema=\"nimbusai-critical\""
       },
       "weight": 3
+    },
+    {
+      "id": "xray-cp-lens-l1-attribution-source",
+      "describe": "X-Ray Control-Plane lens (M1 L1 attribution) data source: watch-stream objects carry managedFields, which the lens reads to attribute each change to its most-recent field manager (L2 audit stream is covered by audit-mode-active; L3 APF by apf-metrics-observable)",
+      "run": "kubectl --context kind-kubeadv-core get --raw '/apis/apps/v1/namespaces/nimbusai/deployments/nimbusai-gateway'",
+      "assert": {
+        "contains": "\"managedFields\""
+      },
+      "weight": 1
     }
   ]
 }

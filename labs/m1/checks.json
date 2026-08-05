@@ -71,6 +71,24 @@
         "absent": "true"
       },
       "weight": 1
+    },
+    {
+      "id": "xray-recon-lens-deployments-source",
+      "describe": "X-Ray Reconciliation lens (M1) data source: the deployments watch/list API returns the gateway with its spec-vs-status generation fields — the reconciliation-lag signal the lens renders",
+      "run": "kubectl --context kind-kubeadv-core get --raw '/apis/apps/v1/namespaces/nimbusai/deployments/nimbusai-gateway'",
+      "assert": {
+        "contains": "\"observedGeneration\""
+      },
+      "weight": 1
+    },
+    {
+      "id": "xray-recon-lens-nodes-source",
+      "describe": "X-Ray Reconciliation lens (M1) data source: the nodes API the lens uses to group pod chips by node and show cordon state responds with the worker node",
+      "run": "kubectl --context kind-kubeadv-core get --raw '/api/v1/nodes'",
+      "assert": {
+        "contains": "kubeadv-core-worker"
+      },
+      "weight": 1
     }
   ]
 }

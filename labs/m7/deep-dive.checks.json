@@ -1,0 +1,58 @@
+{
+  "checks": [
+    {
+      "id": "deepdive-no-kube-svc-chains",
+      "describe": "deep-dive S1: Cilium eliminates iptables Service chains — zero KUBE-SVC-* rules on the node",
+      "run": "docker exec cilium-networking-control-plane iptables-save 2>/dev/null | grep -c 'KUBE-SVC' | tr -d ' \\n'",
+      "assert": {
+        "matches": "^0$"
+      },
+      "weight": 2
+    },
+    {
+      "id": "deepdive-cni-cilium-delegation",
+      "describe": "deep-dive S2: kubelet delegates pod networking to the Cilium CNI plugin (05-cilium.conflist)",
+      "run": "docker exec cilium-networking-control-plane cat /etc/cni/net.d/05-cilium.conflist 2>/dev/null",
+      "assert": {
+        "contains": "cilium"
+      },
+      "weight": 2
+    },
+    {
+      "id": "deepdive-conntrack-table-bounded",
+      "describe": "deep-dive S3: the conntrack table has a finite nf_conntrack_max bound on the worker node",
+      "run": "docker exec cilium-networking-worker sysctl net.netfilter.nf_conntrack_max 2>/dev/null",
+      "assert": {
+        "contains": "net.netfilter.nf_conntrack_max"
+      },
+      "weight": 1
+    },
+    {
+      "id": "deepdive-no-kube-proxy-ebpf",
+      "describe": "deep-dive S6: no kube-proxy DaemonSet — the eBPF datapath replaces netfilter Service handling",
+      "run": "kubectl --context kind-cilium-networking -n kube-system get ds kube-proxy 2>&1",
+      "assert": {
+        "contains": "NotFound"
+      },
+      "weight": 2
+    },
+    {
+      "id": "deepdive-ciliumnetworkpolicy-crd",
+      "describe": "deep-dive S5: CiliumNetworkPolicy CRD is registered — enables L7/FQDN rules beyond standard NetworkPolicy",
+      "run": "kubectl --context kind-cilium-networking get crd ciliumnetworkpolicies.cilium.io -o jsonpath='{.metadata.name}' 2>/dev/null",
+      "assert": {
+        "matches": "^ciliumnetworkpolicies\\.cilium\\.io$"
+      },
+      "weight": 1
+    },
+    {
+      "id": "deepdive-hubble-enabled",
+      "describe": "deep-dive S4: Hubble is enabled in the Cilium install — the substrate for L7 flow visibility",
+      "run": "cilium status --context kind-cilium-networking 2>/dev/null | grep -i hubble",
+      "assert": {
+        "contains": "Hubble"
+      },
+      "weight": 1
+    }
+  ]
+}

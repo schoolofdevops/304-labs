@@ -1,0 +1,76 @@
+{
+  "checks": [
+    {
+      "id": "capstone-cluster-up",
+      "describe": "capstone cluster is up with control-plane and two worker nodes",
+      "run": "kubectl --context kind-kubeadv-capstone get nodes --no-headers | wc -l | tr -d ' \\n'",
+      "assert": {
+        "matches": "^3$"
+      },
+      "weight": 1
+    },
+    {
+      "id": "capstone-app-namespace-exists",
+      "describe": "capstone-app namespace exists with baseline workloads deployed",
+      "run": "kubectl --context kind-kubeadv-capstone get ns capstone-app -o jsonpath='{.metadata.name}'",
+      "assert": {
+        "matches": "^capstone-app$"
+      },
+      "weight": 1
+    },
+    {
+      "id": "fault-1-scheduling-taint",
+      "describe": "fault 1 injected — GPU worker tainted with maintenance=true:NoSchedule causing Pending pods",
+      "run": "kubectl --context kind-kubeadv-capstone get pods -n capstone-app -l app=inference-worker --field-selector=status.phase=Pending --no-headers 2>/dev/null | wc -l | tr -d ' \\n'",
+      "assert": {
+        "matches": "^[1-9]"
+      },
+      "weight": 2
+    },
+    {
+      "id": "fault-2-coredns-corrupt",
+      "describe": "fault 2 injected — CoreDNS Corefile has corrupt upstream forwarder (10.0.0.254)",
+      "run": "kubectl --context kind-kubeadv-capstone -n kube-system get cm coredns -o jsonpath='{.data.Corefile}' | grep -c '10.0.0.254'",
+      "assert": {
+        "matches": "^1$"
+      },
+      "weight": 2
+    },
+    {
+      "id": "fault-3-operator-broken",
+      "describe": "fault 3 injected — website-operator-src ConfigMap deleted, operator pod stuck",
+      "run": "kubectl --context kind-kubeadv-capstone -n capstone-app get cm website-operator-src 2>&1",
+      "assert": {
+        "contains": "NotFound"
+      },
+      "weight": 2
+    },
+    {
+      "id": "fault-4-api-throttling",
+      "describe": "fault 4 injected — throttle-serviceaccounts FlowSchema exists routing SAs to 1-concurrency PriorityLevel",
+      "run": "kubectl --context kind-kubeadv-capstone get flowschema throttle-serviceaccounts -o jsonpath='{.metadata.name}' 2>/dev/null",
+      "assert": {
+        "matches": "^throttle-serviceaccounts$"
+      },
+      "weight": 2
+    },
+    {
+      "id": "fault-5-etcd-junk",
+      "describe": "fault 5 injected — capstone-junk namespace exists with junk ConfigMaps filling etcd",
+      "run": "kubectl --context kind-kubeadv-capstone get ns capstone-junk -o jsonpath='{.metadata.name}' 2>/dev/null",
+      "assert": {
+        "matches": "^capstone-junk$"
+      },
+      "weight": 2
+    },
+    {
+      "id": "fault-6-kueue-blocked",
+      "describe": "fault 6 injected — ClusterQueue capstone-cq has nominalQuota cpu=0 blocking all jobs",
+      "run": "kubectl --context kind-kubeadv-capstone get clusterqueue capstone-cq -o jsonpath='{.spec.resourceGroups[0].flavors[0].resources[0].nominalQuota}' 2>/dev/null",
+      "assert": {
+        "matches": "^0$"
+      },
+      "weight": 2
+    }
+  ]
+}

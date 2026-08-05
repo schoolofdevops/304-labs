@@ -41,6 +41,13 @@
       "run": "kubectl --context kwok-kwok-scale get prioritylevelconfigurations -o name 2>/dev/null | tr '\\n' ' '; echo",
       "assert": { "matches": "leader-election" },
       "weight": 2
+    },
+    {
+      "id": "xray-scale-lens-inflight-gauge-source",
+      "describe": "X-Ray Scale lens (M6) data source: the apiserver_current_inflight_requests gauge (the lens's API-load panel) is exposed in /metrics — the object census (apiserver_storage_objects) and LIST latency are already asserted above",
+      "run": "kubectl --context kwok-kwok-scale get --raw /metrics 2>/dev/null | grep '^apiserver_current_inflight_requests'",
+      "assert": { "contains": "apiserver_current_inflight_requests" },
+      "weight": 1
     }
   ]
 }

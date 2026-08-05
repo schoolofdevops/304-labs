@@ -1,0 +1,67 @@
+{
+  "checks": [
+    {
+      "id": "deepdive-mcp-tools-list",
+      "describe": "deep-dive S1: the MCP server answers a tools/list request over JSON-RPC — the discovery step of the session lifecycle",
+      "run": "POD=$(kubectl --context kind-kubeadv-core -n m10-lab get pod -l app=mcp-server -o jsonpath='{.items[0].metadata.name}'); kubectl --context kind-kubeadv-core -n m10-lab exec $POD -- curl -s -X POST http://localhost:8080 -H 'Content-Type: application/json' -d '{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/list\"}'",
+      "assert": {
+        "contains": "list_pods"
+      },
+      "weight": 2
+    },
+    {
+      "id": "deepdive-mcp-unknown-method-error",
+      "describe": "deep-dive S1: an unknown JSON-RPC method returns a protocol error with code -32601 (Method not found)",
+      "run": "POD=$(kubectl --context kind-kubeadv-core -n m10-lab get pod -l app=mcp-server -o jsonpath='{.items[0].metadata.name}'); kubectl --context kind-kubeadv-core -n m10-lab exec $POD -- curl -s -X POST http://localhost:8080 -H 'Content-Type: application/json' -d '{\"jsonrpc\":\"2.0\",\"id\":9,\"method\":\"pods/list\"}'",
+      "assert": {
+        "contains": "-32601"
+      },
+      "weight": 2
+    },
+    {
+      "id": "deepdive-projected-token-files",
+      "describe": "deep-dive S2: the projected SA volume mounts token, ca.crt, and namespace at the serviceaccount path",
+      "run": "POD=$(kubectl --context kind-kubeadv-core -n m10-lab get pod -l app=mcp-server -o jsonpath='{.items[0].metadata.name}'); kubectl --context kind-kubeadv-core -n m10-lab exec $POD -- ls /var/run/secrets/kubernetes.io/serviceaccount/",
+      "assert": {
+        "contains": "token"
+      },
+      "weight": 2
+    },
+    {
+      "id": "deepdive-tokenrequest-short-lived",
+      "describe": "deep-dive S2: the TokenRequest API mints an audience-scoped, short-duration bound token (a JWT) for the agent SA",
+      "run": "kubectl --context kind-kubeadv-core create token ai-agent -n m10-lab --audience https://kubernetes.default.svc --duration 10m 2>/dev/null",
+      "assert": {
+        "contains": "eyJ"
+      },
+      "weight": 2
+    },
+    {
+      "id": "deepdive-agent-cannot-escalate",
+      "describe": "deep-dive S3: RBAC escalation prevention — the read-only agent SA cannot create RoleBindings",
+      "run": "kubectl --context kind-kubeadv-core auth can-i create rolebindings.rbac.authorization.k8s.io -n m10-lab --as=system:serviceaccount:m10-lab:ai-agent",
+      "assert": {
+        "matches": "^no$"
+      },
+      "weight": 3
+    },
+    {
+      "id": "deepdive-agent-cannot-read-secrets",
+      "describe": "deep-dive S3: secrets are excluded from the agent role — the agent SA is denied get on secrets",
+      "run": "kubectl --context kind-kubeadv-core auth can-i get secrets -n m10-lab --as=system:serviceaccount:m10-lab:ai-agent",
+      "assert": {
+        "matches": "^no$"
+      },
+      "weight": 2
+    },
+    {
+      "id": "deepdive-agent-can-read-pods",
+      "describe": "deep-dive S3: the scoped read-only ClusterRole still permits the agent SA to list pods (least-privilege, not no-privilege)",
+      "run": "kubectl --context kind-kubeadv-core auth can-i list pods -n m10-lab --as=system:serviceaccount:m10-lab:ai-agent",
+      "assert": {
+        "matches": "^yes$"
+      },
+      "weight": 1
+    }
+  ]
+}

@@ -1,0 +1,58 @@
+{
+  "checks": [
+    {
+      "id": "deepdive-kv-cache-utilization-metric",
+      "describe": "deep-dive S8: the serving engine exposes KV-cache utilization — the leading indicator on the cache-latency curve",
+      "run": "POD=$(kubectl --context kind-kubeadv-core -n m9-lab get pod -l app=inference-sim -o jsonpath='{.items[0].metadata.name}'); kubectl --context kind-kubeadv-core -n m9-lab exec $POD -- curl -s http://localhost:8080/metrics | grep '^inference_kv_cache_utilization'",
+      "assert": {
+        "contains": "inference_kv_cache_utilization"
+      },
+      "weight": 2
+    },
+    {
+      "id": "deepdive-ttft-metric",
+      "describe": "deep-dive S3/S8: time-to-first-token is exposed — the prefill (compute-bound) latency signal",
+      "run": "POD=$(kubectl --context kind-kubeadv-core -n m9-lab get pod -l app=inference-sim -o jsonpath='{.items[0].metadata.name}'); kubectl --context kind-kubeadv-core -n m9-lab exec $POD -- curl -s http://localhost:8080/metrics | grep '^inference_ttft_seconds'",
+      "assert": {
+        "contains": "inference_ttft_seconds"
+      },
+      "weight": 2
+    },
+    {
+      "id": "deepdive-itl-metric",
+      "describe": "deep-dive S3/S8: inter-token latency is exposed — the decode (memory-bandwidth-bound) latency signal",
+      "run": "POD=$(kubectl --context kind-kubeadv-core -n m9-lab get pod -l app=inference-sim -o jsonpath='{.items[0].metadata.name}'); kubectl --context kind-kubeadv-core -n m9-lab exec $POD -- curl -s http://localhost:8080/metrics | grep '^inference_itl_seconds'",
+      "assert": {
+        "contains": "inference_itl_seconds"
+      },
+      "weight": 2
+    },
+    {
+      "id": "deepdive-queue-depth-metric",
+      "describe": "deep-dive S8: queue depth is exposed — the first signal to check when correlating a production incident",
+      "run": "POD=$(kubectl --context kind-kubeadv-core -n m9-lab get pod -l app=inference-sim -o jsonpath='{.items[0].metadata.name}'); kubectl --context kind-kubeadv-core -n m9-lab exec $POD -- curl -s http://localhost:8080/metrics | grep '^inference_queue_depth'",
+      "assert": {
+        "contains": "inference_queue_depth"
+      },
+      "weight": 2
+    },
+    {
+      "id": "deepdive-kv-cache-slots-bounded",
+      "describe": "deep-dive S2: the KV cache is a finite pool of blocks — total slots is a fixed, non-zero budget",
+      "run": "POD=$(kubectl --context kind-kubeadv-core -n m9-lab get pod -l app=inference-sim -o jsonpath='{.items[0].metadata.name}'); kubectl --context kind-kubeadv-core -n m9-lab exec $POD -- curl -s http://localhost:8080/metrics | grep '^inference_kv_cache_total_slots' | grep -oE '[1-9][0-9]*$'",
+      "assert": {
+        "matches": "^[1-9][0-9]*$"
+      },
+      "weight": 1
+    },
+    {
+      "id": "deepdive-models-endpoint",
+      "describe": "deep-dive S4/S5: the engine advertises its served model on /v1/models — the identity the router routes by",
+      "run": "POD=$(kubectl --context kind-kubeadv-core -n m9-lab get pod -l app=inference-sim -o jsonpath='{.items[0].metadata.name}'); kubectl --context kind-kubeadv-core -n m9-lab exec $POD -- curl -s http://localhost:8080/v1/models",
+      "assert": {
+        "contains": "sim-llm-7b"
+      },
+      "weight": 1
+    }
+  ]
+}

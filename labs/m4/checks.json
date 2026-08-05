@@ -53,6 +53,24 @@
         "contains": "TaintManagerEviction"
       },
       "weight": 3
+    },
+    {
+      "id": "xray-sched-lens-pending-poll-source",
+      "describe": "X-Ray Scheduling lens (M4) data source: the cluster-wide status.phase=Pending field-selector poll (the lens's 'why is this stuck' board) returns a valid PodList",
+      "run": "kubectl --context kind-kubeadv-core get --raw '/api/v1/pods?fieldSelector=status.phase=Pending&limit=500'",
+      "assert": {
+        "contains": "\"kind\":\"PodList\""
+      },
+      "weight": 1
+    },
+    {
+      "id": "xray-sched-lens-nodes-source",
+      "describe": "X-Ray Scheduling lens (M4) data source: the nodes API feeding the Nodes panel returns allocatable capacity (and taints) for the real + KWOK-fake nodes",
+      "run": "kubectl --context kind-kubeadv-core get --raw '/api/v1/nodes'",
+      "assert": {
+        "contains": "\"allocatable\""
+      },
+      "weight": 1
     }
   ]
 }

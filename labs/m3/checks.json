@@ -62,6 +62,33 @@
         "contains": "m3-write-probe\" deleted"
       },
       "weight": 3
+    },
+    {
+      "id": "xray-storage-lens-etcd-metrics-live",
+      "describe": "X-Ray Storage lens (M3) data source: the etcd pod's :2381 metrics endpoint is reachable through the apiserver pod-proxy and returns live etcd metrics (proves the --listen-metrics-urls knob actually works, not just that the flag is set)",
+      "run": "kubectl --context kind-kubeadv-core get --raw '/api/v1/namespaces/kube-system/pods/etcd-kubeadv-core-control-plane:2381/proxy/metrics'",
+      "assert": {
+        "contains": "etcd_mvcc_db_total_size_in_bytes"
+      },
+      "weight": 2
+    },
+    {
+      "id": "xray-storage-lens-apiserver-etcd-latency",
+      "describe": "X-Ray Storage lens (M3) data source: the apiserver /metrics endpoint carries the apiserver->etcd request-latency histogram the lens plots as p50/p99",
+      "run": "kubectl --context kind-kubeadv-core get --raw /metrics",
+      "assert": {
+        "contains": "etcd_request_duration_seconds"
+      },
+      "weight": 1
+    },
+    {
+      "id": "xray-storage-lens-readyz-etcd",
+      "describe": "X-Ray Storage lens (M3) data source: the /readyz/etcd probe (the lens's probe-trap datapoint — stays ok during a NOSPACE alarm) responds",
+      "run": "kubectl --context kind-kubeadv-core get --raw '/readyz/etcd'",
+      "assert": {
+        "contains": "ok"
+      },
+      "weight": 1
     }
   ]
 }
