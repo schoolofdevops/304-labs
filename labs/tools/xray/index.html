@@ -1081,7 +1081,7 @@ setInterval(function(){ /* refresh ages */
 var curLens='recon';
 
 /* ---------- L1: attribution + diagram pulses ---------- */
-var pulseWin=0,pulseCount=0;
+var pulseWin={},pulseCount={};
 function mgrComp(m){
   m=(m||'').toLowerCase();
   if(m.indexOf('kube-controller-manager')>-1||/(^|-)(deployment|replicaset|endpoint|node|namespace|cronjob|job|taint|garbage)-?controller/.test(m))return 'cm';
@@ -1133,8 +1133,12 @@ function pulseFlow(comp,label,write,who){
   logAttr(comp,label,who);
   if(curLens!=='cp')return;
   var now=Date.now();
-  if(now-pulseWin>900){pulseWin=now;pulseCount=0}
-  if(++pulseCount>7)return;               /* storm guard: keep logging, skip animation */
+  /* per-component storm guard: a chatty component (controller-manager fires many
+     status/event writes per action) must not crowd out a quiet one (the scheduler
+     fires exactly one bind per pod) — a shared counter let cm's burst starve sched's
+     turn during a scale-up even though sched's own write was correctly attributed. */
+  if(now-(pulseWin[comp]||0)>900){pulseWin[comp]=now;pulseCount[comp]=0}
+  if(++pulseCount[comp]>4)return;         /* storm guard: keep logging, skip animation */
   compPulse('c-'+comp);edgeLabel(comp,label);
   if(COMP_EDGE[comp])edgeDot(COMP_EDGE[comp]);
   setTimeout(function(){compPulse('c-api')},380);
@@ -1185,9 +1189,19 @@ function renderAuditAll(){
   list.scrollTop=list.scrollHeight;
 }
 var WRITE_VERBS=['create','update','patch','delete','deletecollection'];
-function isCompUser(u){
-  return u==='system:kube-scheduler'||u==='system:kube-controller-manager'||
-    u==='system:apiserver'||/^system:node:/.test(u);
+function auditActorComp(u){
+  /* audit usernames, not managedFields manager strings — different vocabulary.
+     kubelet is system:node:<name> (never contains "kubelet"); on modern k8s each
+     controller-manager loop authenticates as its own kube-system ServiceAccount
+     (system:serviceaccount:kube-system:deployment-controller, …-replicaset-controller,
+     …) rather than the monolithic system:kube-controller-manager identity — miss that
+     and their routine reconciliation writes get misattributed to "you/clients". */
+  if(u==='system:kube-scheduler')return 'sched';
+  if(u==='system:kube-controller-manager')return 'cm';
+  if(/^system:node:/.test(u))return 'kubelet';
+  if(/^system:serviceaccount:kube-system:.*-controller$/.test(u))return 'cm';
+  if(u==='system:apiserver')return null;          /* aggregation/health traffic, not a flow leg */
+  return 'client';
 }
 function handleAudit(o){
   if(o.stage!=='ResponseComplete')return;
@@ -1219,12 +1233,22 @@ function handleAudit(o){
       edgeDot('e-etcd');compPulse('c-etcd');
     }
   }
-  /* you/clients → apiserver edge, from the audit stream itself — not just managedFields
-     on the handful of kinds (deployments/pods/nodes) this page happens to watch. Covers
-     every resource kind a learner might kubectl apply/create/patch/delete (ConfigMaps,
-     RBAC, FlowSchemas, …), which is most of what M2's lab actually exercises. */
-  if(code<300&&WRITE_VERBS.indexOf(r.verb)>-1&&!isCompUser(u)){
-    pulseFlow('client',r.verb+' '+(res||uri),true,u);
+  /* every component's edge, from the audit stream itself — not just managedFields/events
+     on the handful of kinds (deployments/pods/nodes) this page happens to watch, and not
+     just the currently-selected namespace. The events watch that "Scheduled" attribution
+     relies on is namespace-scoped and single-shot (kube-scheduler never appears in a Pod's
+     managedFields at all) — a pod bound outside the selected namespace never lit c-sched.
+     Audit is cluster-wide and per-request, so it covers every actor uniformly. */
+  var comp=auditActorComp(u);
+  if(comp&&code<300&&WRITE_VERBS.indexOf(r.verb)>-1){
+    /* cm and kubelet already get a redundant, reliable pulse from the deployments/pods
+       managedFields watch when this write lands in the currently-selected namespace —
+       don't double-count it against the shared storm-guard budget below. Scheduler has
+       no managedFields signal at all (never appears as a manager on a Pod) and client's
+       audit signal is the only cluster-wide one, so neither gets deduped. */
+    var dupWatched=(comp==='cm'||comp==='kubelet')&&or&&
+      (or.resource==='pods'||or.resource==='deployments')&&(!or.namespace||or.namespace===S.ns);
+    if(!dupWatched)pulseFlow(comp,r.verb+' '+(res||uri),true,u);
   }
 }
 function renderAuditState(){
