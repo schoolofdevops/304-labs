@@ -1184,6 +1184,11 @@ function renderAuditAll(){
   if(!list.children.length)list.innerHTML='<span id="auditEmpty">— audit stream connected, waiting for requests…</span>';
   list.scrollTop=list.scrollHeight;
 }
+var WRITE_VERBS=['create','update','patch','delete','deletecollection'];
+function isCompUser(u){
+  return u==='system:kube-scheduler'||u==='system:kube-controller-manager'||
+    u==='system:apiserver'||/^system:node:/.test(u);
+}
 function handleAudit(o){
   if(o.stage!=='ResponseComplete')return;
   if(o.objectRef&&o.objectRef.resource==='leases')return;        /* lease renewals: pure noise */
@@ -1210,9 +1215,16 @@ function handleAudit(o){
   if(curLens==='cp'&&now-AUD.lastPulse>150){
     AUD.lastPulse=now;
     compPulse('c-api');
-    if(['create','update','patch','delete','deletecollection'].indexOf(r.verb)>-1){
+    if(WRITE_VERBS.indexOf(r.verb)>-1){
       edgeDot('e-etcd');compPulse('c-etcd');
     }
+  }
+  /* you/clients → apiserver edge, from the audit stream itself — not just managedFields
+     on the handful of kinds (deployments/pods/nodes) this page happens to watch. Covers
+     every resource kind a learner might kubectl apply/create/patch/delete (ConfigMaps,
+     RBAC, FlowSchemas, …), which is most of what M2's lab actually exercises. */
+  if(code<300&&WRITE_VERBS.indexOf(r.verb)>-1&&!isCompUser(u)){
+    pulseFlow('client',r.verb+' '+(res||uri),true,u);
   }
 }
 function renderAuditState(){
