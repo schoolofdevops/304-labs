@@ -35,6 +35,9 @@
   .tab.stub{opacity:.45;cursor:not-allowed}
   .tab.stub small{color:var(--faint);font-size:.68rem;margin-left:4px}
   #hdrRight{display:flex;align-items:center;gap:10px;margin-left:auto;font-family:var(--mono);font-size:.8rem;color:var(--faint)}
+  #hdrRight a{color:var(--dim);text-decoration:none}
+  #hdrRight a:hover{color:var(--accent)}
+  #brand{white-space:nowrap}
   #watchInd{display:flex;align-items:center;gap:6px;padding:2px 9px;border-radius:9px;border:1px solid var(--line)}
   #watchInd .wdot{width:.55rem;height:.55rem;border-radius:50%;background:var(--faint)}
   #watchInd.connected .wdot{background:var(--ok)}
@@ -288,6 +291,9 @@
   .scNode .snalloc .av{color:var(--accent)}
   .scTaints{margin-top:5px;display:flex;flex-wrap:wrap;gap:5px}
   .scTaints .ttl{font-size:.68rem;color:var(--faint);align-self:center;margin-right:2px}
+  .scNodePods{margin-top:5px;display:flex;flex-wrap:wrap;gap:5px;align-items:center}
+  .scNodePods .ttl{font-size:.68rem;color:var(--faint);align-self:center;margin-right:2px}
+  .scNodePods .pod{padding:2px 7px;font-size:.72rem}
   .badge.tnt{background:rgba(123,108,246,.15);color:#a89cf8;border:1px solid rgba(123,108,246,.45);
     font-family:var(--mono);font-weight:600}
   .badge.tnt.exec{background:rgba(255,107,107,.14);color:#ff9d9d;border-color:rgba(255,107,107,.55)}
@@ -431,6 +437,7 @@
     <div id="hdrRight">
       <span id="verInfo">connecting…</span>
       <span id="watchInd"><span class="wdot"></span><span id="watchTxt">watch: connecting</span></span>
+      <span id="brand"><a href="https://schoolofdevops.com" target="_blank" rel="noopener noreferrer">schoolofdevops.com</a> · © Initcron Systems Pvt Ltd, 2026</span>
     </div>
   </header>
 
@@ -570,7 +577,7 @@
       <div id="scPendList"><div id="scPendEmpty">— probing for Pending pods…</div></div>
     </div>
     <div class="panel" id="scNodePanel">
-      <h2>Nodes <span class="soft">— Ready · allocatable cpu/mem · taints (real + fake)</span></h2>
+      <h2>Nodes <span class="soft">— Ready · allocatable cpu/mem · taints · pods placed here (selected namespace)</span></h2>
       <div id="scNodeList"><span style="color:var(--faint);font-size:.82rem">— waiting for node watch…</span></div>
     </div>
     <div class="panel" id="scActPanel">
@@ -620,6 +627,9 @@
       <div style="font-size:.72rem;color:var(--faint);margin-bottom:4px">apiserver_storage_objects — what actually sits in etcd (top kinds)</div>
       <div id="scaleObjList"><div style="color:var(--faint);font-size:.82rem">— reading /metrics…</div></div>
       <div class="scaleNote" id="scEventsNote"></div>
+      <div class="scaleNote">These counts come from the API server's own <code>apiserver_storage_objects</code>
+        gauge, which it recomputes on its own ~30&#8211;60s internal cycle &#8212; not on every write. Scale a
+        Deployment and give it a beat before checking back; this is kube-apiserver's cadence, not this tool's.</div>
     </div>
     <div class="panel" id="scaleApiPanel">
       <h2>API server load <span class="soft">— inflight, request rate, LIST latency</span></h2>
@@ -795,7 +805,7 @@ function switchNs(ns){
   S.deploys={};S.pods={};prevDep={};
   $('depCards').innerHTML='';
   $('evList').innerHTML='<div id="evEmpty">— waiting for events…</div>';
-  renderNsSel();renderDeps();renderCluster();
+  renderNsSel();renderDeps();renderCluster();renderScNodes();
   startNsWatches();
 }
 
@@ -822,14 +832,14 @@ function startNsWatches(){
     onList:function(items){
       S.pods={};
       items.forEach(function(p){S.pods[p.metadata.name]=p});
-      renderCluster();
+      renderCluster();renderScNodes();
     },
     onEvent:function(type,obj){
       if(type==='DELETED'){
         delete S.pods[obj.metadata.name];
         animateOut(obj.metadata.name);
       }else{S.pods[obj.metadata.name]=obj;attribute('pod',type,obj)}
-      renderCluster();
+      renderCluster();renderScNodes();
     }
   }));
   S.ctls.push(startWatch({
@@ -1632,7 +1642,7 @@ function renderScNodes(){
       el=document.createElement('div');el.className='scNode';el.id='scn-'+nm;
       el.innerHTML='<div class="snn"><b></b><span class="snrole"></span>'+
         '<span class="badge notready" style="display:none">NotReady</span>'+
-        '<span class="snalloc"></span></div><div class="scTaints"></div>';
+        '<span class="snalloc"></span></div><div class="scTaints"></div><div class="scNodePods"></div>';
       el.querySelector('b').textContent=nm;
       host.appendChild(el);
     }
@@ -1656,6 +1666,18 @@ function renderScNodes(){
         b.title=b.textContent;
         tw.appendChild(b);
       });
+    }
+    var ph=el.querySelector('.scNodePods');
+    var onNode=Object.keys(S.pods).map(function(pn){return S.pods[pn]}).filter(function(p){
+      return p.spec&&p.spec.nodeName===nm&&!p.metadata.deletionTimestamp;
+    }).sort(function(a,b){return a.metadata.name<b.metadata.name?-1:1});
+    if(!onNode.length){
+      ph.innerHTML='<span class="ttl">pods (ns: '+esc(S.ns)+'):</span><span class="ttl" style="opacity:.7">none placed here</span>';
+    }else{
+      ph.innerHTML='<span class="ttl">pods (ns: '+esc(S.ns)+'):</span>'+onNode.map(function(p){
+        var phase=(p.status&&p.status.phase)||'Pending';
+        return '<span class="pod '+esc(phase)+'"><span class="dotp"></span>'+esc(p.metadata.name)+'</span>';
+      }).join('');
     }
   });
   Array.prototype.slice.call(host.querySelectorAll('.scNode')).forEach(function(el){
