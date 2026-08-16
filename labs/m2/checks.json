@@ -64,6 +64,15 @@
       "weight": 2
     },
     {
+      "id": "apf-seat-meter-renders",
+      "describe": "the APF terminal meter can read live metrics and calculate wide-request deltas without extra Python packages",
+      "run": "python3 labs/m2/apf-seat-meter.py --once --no-color",
+      "assert": {
+        "contains": "Wide requests (>4 seats)"
+      },
+      "weight": 2
+    },
+    {
       "id": "critical-flowschema-saw-traffic",
       "describe": "the nimbusai-critical FlowSchema actually classified requests — its dispatch counter exists",
       "run": "kubectl --context kind-kubeadv-core get --raw /metrics | grep apiserver_flowcontrol_dispatched_requests_total | grep nimbusai-critical | head -1",
