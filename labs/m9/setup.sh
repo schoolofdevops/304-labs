@@ -4,8 +4,9 @@
 set -euo pipefail
 
 CONTEXT="kind-kubeadv-core"
-KUBECTL="/opt/homebrew/bin/kubectl --context ${CONTEXT}"
+KUBECTL="kubectl --context ${CONTEXT}"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+LABS_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 echo "=== M9 Lab Setup: Inference Simulator ==="
 
@@ -14,8 +15,13 @@ ${KUBECTL} create namespace m9-lab --dry-run=client -o yaml | ${KUBECTL} apply -
 
 # ---- Pre-pull python:3.12-slim on worker ----
 echo ""
-echo "--- Pre-pulling python:3.12-slim (first pull ~1 min) ---"
-${KUBECTL} -n m9-lab apply -f - <<'EOF'
+if [ "${COURSE_IMAGE_CACHE:-0}" = "1" ]; then
+  echo "--- Loading the pre-pulled python image from host Docker ---"
+  bash "${LABS_DIR}/tools/preload-course-images.sh" \
+    --load-only --cluster kubeadv-core --scope core
+else
+  echo "--- Pre-pulling python:3.12-slim inside the cluster (first pull ~1 min) ---"
+  ${KUBECTL} -n m9-lab apply -f - <<'EOF'
 apiVersion: v1
 kind: Pod
 metadata:
@@ -29,9 +35,10 @@ spec:
   nodeSelector:
     kubernetes.io/os: linux
 EOF
-${KUBECTL} -n m9-lab wait --for=condition=ready pod prepull --timeout=180s 2>/dev/null || \
-  ${KUBECTL} -n m9-lab wait --for=jsonpath='{.status.phase}'=Succeeded pod prepull --timeout=180s
-${KUBECTL} -n m9-lab delete pod prepull
+  ${KUBECTL} -n m9-lab wait --for=condition=ready pod prepull --timeout=180s 2>/dev/null || \
+    ${KUBECTL} -n m9-lab wait --for=jsonpath='{.status.phase}'=Succeeded pod prepull --timeout=180s
+  ${KUBECTL} -n m9-lab delete pod prepull
+fi
 
 # ---- Deploy simulator via ConfigMap + Deployment ----
 echo ""

@@ -12,10 +12,16 @@ CLUSTER_NAME="kubeadv-capstone"
 KIND_IMAGE="${KIND_IMAGE:-kindest/node:v1.35.0}"
 PROFILE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LABS_DIR="$(cd "${PROFILE_DIR}/../../" && pwd)"
+KUEUE_VERSION="v0.17.2"
 
 if kind get clusters 2>/dev/null | grep -qx "${CLUSTER_NAME}"; then
   echo "kind cluster '${CLUSTER_NAME}' already exists — reusing it."
   kubectl cluster-info --context "kind-${CLUSTER_NAME}" >/dev/null
+  if [ "${COURSE_IMAGE_CACHE:-0}" = "1" ]; then
+    echo "Loading the pre-pulled capstone images into every cluster node ..."
+    bash "${LABS_DIR}/tools/preload-course-images.sh" \
+      --load-only --cluster "${CLUSTER_NAME}" --scope capstone
+  fi
   exit 0
 fi
 
@@ -53,11 +59,25 @@ EOF
 
 kubectl config use-context "kind-${CLUSTER_NAME}" >/dev/null
 
+if [ "${COURSE_IMAGE_CACHE:-0}" = "1" ]; then
+  echo "Loading the pre-pulled capstone images into every cluster node ..."
+  bash "${LABS_DIR}/tools/preload-course-images.sh" \
+    --load-only --cluster "${CLUSTER_NAME}" --scope capstone
+fi
+
 # ---- Install Kueue ----
 echo ""
-echo "Installing Kueue v0.17.2 ..."
+echo "Installing Kueue ${KUEUE_VERSION} ..."
+KUEUE_RAW="$(mktemp "${TMPDIR:-/tmp}/kueue-raw.XXXXXX")"
+KUEUE_LOCAL="$(mktemp "${TMPDIR:-/tmp}/kueue-local.XXXXXX")"
+trap 'rm -f "${KUEUE_RAW}" "${KUEUE_LOCAL}"' EXIT
+curl -fsSL \
+  "https://github.com/kubernetes-sigs/kueue/releases/download/${KUEUE_VERSION}/manifests.yaml" \
+  -o "${KUEUE_RAW}"
+sed 's/imagePullPolicy: Always/imagePullPolicy: IfNotPresent/' \
+  "${KUEUE_RAW}" > "${KUEUE_LOCAL}"
 kubectl apply --server-side \
-  -f https://github.com/kubernetes-sigs/kueue/releases/download/v0.17.2/manifests.yaml \
+  -f "${KUEUE_LOCAL}" \
   --context "kind-${CLUSTER_NAME}"
 echo "Waiting for Kueue controller ..."
 kubectl -n kueue-system wait --for=condition=ready pod \
@@ -70,7 +90,24 @@ echo "Installing Website CRD + operator ..."
 kubectl apply -f "${LABS_DIR}/m5/website-crd.yaml" --context "kind-${CLUSTER_NAME}"
 kubectl wait --for condition=established --timeout=30s \
   crd/websites.kubeadv.io --context "kind-${CLUSTER_NAME}"
-kubectl apply -f "${LABS_DIR}/m5/operator.yaml" --context "kind-${CLUSTER_NAME}"
+
+# Kueue's own admission webhook intercepts every apps/v1 Deployment cluster-wide
+# (not just Kueue-managed ones). Its pod can report Ready a moment before the
+# kueue-webhook-service Endpoints finish propagating, so the very next apply
+# below can hit "dial tcp ...: connect: connection refused" even though Kueue
+# just passed its readiness wait. Retry past that startup race instead of
+# failing the whole cluster create on it.
+for attempt in $(seq 1 6); do
+  if kubectl apply -f "${LABS_DIR}/m5/operator.yaml" --context "kind-${CLUSTER_NAME}"; then
+    break
+  fi
+  if [ "${attempt}" -eq 6 ]; then
+    echo "operator.yaml apply failed after ${attempt} attempts (Kueue webhook not reachable) — aborting." >&2
+    exit 1
+  fi
+  echo "  operator.yaml apply failed (Kueue webhook likely still propagating) — retrying in 5s ..."
+  sleep 5
+done
 kubectl -n m5-system rollout status deploy/website-operator --timeout=240s \
   --context "kind-${CLUSTER_NAME}"
 
@@ -80,7 +117,7 @@ echo "Cluster: ${CLUSTER_NAME} (${KIND_IMAGE})"
 echo "Nodes: 1 control-plane + 2 workers"
 echo "Audit: enabled (stdout)"
 echo "etcd: 256MB quota, metrics on :2381"
-echo "Kueue: v0.17.2"
+echo "Kueue: ${KUEUE_VERSION}"
 echo "Website operator: running in m5-system"
 echo ""
 echo "Next: bash ${LABS_DIR}/m11/inject.sh   # inject the 6 capstone faults"

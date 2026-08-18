@@ -18,12 +18,23 @@
 set -euo pipefail
 
 CLUSTER="${CLUSTER:-kwok-scale}"
+KUBE_VERSION="${KUBE_VERSION:-v1.35.0}"
+ETCD_IMAGE="${ETCD_IMAGE:-registry.k8s.io/etcd:3.6.6-0}"
+KWOK_IMAGE="${KWOK_IMAGE:-registry.k8s.io/kwok/kwok:v0.8.0}"
 
 if kwokctl get clusters 2>/dev/null | grep -qx "${CLUSTER}"; then
   echo "==> kwok-scale already exists — reusing."
 else
   echo "==> Creating kwokctl cluster '${CLUSTER}' (docker runtime) ..."
-  kwokctl create cluster --name "${CLUSTER}" --runtime docker
+  kwokctl create cluster \
+    --name "${CLUSTER}" \
+    --runtime docker \
+    --kube-apiserver-image "registry.k8s.io/kube-apiserver:${KUBE_VERSION}" \
+    --kube-controller-manager-image "registry.k8s.io/kube-controller-manager:${KUBE_VERSION}" \
+    --kube-scheduler-image "registry.k8s.io/kube-scheduler:${KUBE_VERSION}" \
+    --etcd-image "${ETCD_IMAGE}" \
+    --kwok-controller-image "${KWOK_IMAGE}" \
+    --quiet-pull -v warn
 fi
 
 # Point kubectl at it (kwokctl writes the context kwok-${CLUSTER}).

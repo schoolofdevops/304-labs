@@ -3,6 +3,32 @@
 Hands-on lab assets for **Advanced Kubernetes: Production-Scale Internals & the
 AI-Native Platform** by [School of DevOps & AI](https://schoolofdevops.com).
 
+## Corporate firewall image workaround
+
+If `docker pull` works on your laptop but Pods fail with `ImagePullBackOff` and an `x509: certificate signed by unknown authority` error, preload the course images through host Docker:
+
+```bash
+bash labs/tools/preload-course-images.sh --pull-only
+export COURSE_IMAGE_CACHE=1
+```
+
+Then create or reuse the course cluster normally. The cluster scripts import the required images into containerd on every kind node:
+
+```bash
+bash labs/clusters/core-internals/create.sh
+```
+
+For an already-running core cluster, you can pull and load all course images in one run:
+
+```bash
+export COURSE_IMAGE_CACHE=1
+bash labs/tools/preload-course-images.sh \
+  --cluster kubeadv-core \
+  --scope all
+```
+
+This workaround requires host `docker pull` to succeed. It avoids registry access from inside kind; it does not install a corporate CA or proxy configuration.
+
 Course content lives at **https://schoolofdevops.github.io/304-kubeadv/** — start
 with the Setup section there. This repo is the only thing you clone:
 

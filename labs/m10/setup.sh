@@ -6,14 +6,21 @@ set -euo pipefail
 CONTEXT="kind-kubeadv-core"
 NAMESPACE="m10-lab"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+LABS_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 KUBECTL="kubectl --context ${CONTEXT}"
 
 echo "=== M10 Lab Setup: MCP Tool Server + Read-Only RBAC ==="
 
 # Pre-pull image
-echo "Pre-pulling python:3.12-slim..."
-docker pull --quiet python:3.12-slim
-kind load docker-image python:3.12-slim --name kubeadv-core 2>/dev/null || true
+if [ "${COURSE_IMAGE_CACHE:-0}" = "1" ]; then
+  echo "Loading the pre-pulled python image from host Docker ..."
+  bash "${LABS_DIR}/tools/preload-course-images.sh" \
+    --load-only --cluster kubeadv-core --scope core
+else
+  echo "Pre-pulling python:3.12-slim through host Docker ..."
+  docker pull --quiet python:3.12-slim
+  kind load docker-image python:3.12-slim --name kubeadv-core
+fi
 
 # Create namespace
 echo "Creating namespace ${NAMESPACE}..."

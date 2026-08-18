@@ -26,6 +26,7 @@ CLUSTER_NAME="kubeadv-core"
 KIND_IMAGE="${KIND_IMAGE:-kindest/node:v1.35.0}"
 AUDIT="${AUDIT:-1}"
 PROFILE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+LABS_DIR="$(cd "${PROFILE_DIR}/../../" && pwd)"
 
 audit_enabled_on_cluster() {
   kubectl --context "kind-${CLUSTER_NAME}" -n kube-system get pod \
@@ -53,6 +54,11 @@ if kind get clusters 2>/dev/null | grep -qx "${CLUSTER_NAME}"; then
     echo "NOTE: this cluster predates the M3 etcd profile (quota + metrics knobs)."
     echo "      etcd flags are immutable after create — recreate once before M3:"
     echo "        bash ${PROFILE_DIR}/teardown.sh && bash ${PROFILE_DIR}/create.sh"
+  fi
+  if [ "${COURSE_IMAGE_CACHE:-0}" = "1" ]; then
+    echo "Loading the pre-pulled course images into every core-internals node ..."
+    bash "${LABS_DIR}/tools/preload-course-images.sh" \
+      --load-only --cluster "${CLUSTER_NAME}" --scope core
   fi
   exit 0
 fi
@@ -116,6 +122,11 @@ EOF
 fi
 
 kubectl config use-context "kind-${CLUSTER_NAME}" >/dev/null
+if [ "${COURSE_IMAGE_CACHE:-0}" = "1" ]; then
+  echo "Loading the pre-pulled course images into every core-internals node ..."
+  bash "${LABS_DIR}/tools/preload-course-images.sh" \
+    --load-only --cluster "${CLUSTER_NAME}" --scope core
+fi
 if [ "${AUDIT}" = "1" ]; then
   echo "core-internals profile ready: 1 control-plane + 1 worker (${KIND_IMAGE}) — AUDIT ENABLED"
   echo "audit stream: kubectl logs -n kube-system kube-apiserver-${CLUSTER_NAME}-control-plane"
