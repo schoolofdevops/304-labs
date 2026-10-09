@@ -309,6 +309,43 @@ def render_snapshot(
     return "\n".join(lines)
 
 
+def render_both_lanes(
+    samples: dict[str, Sample],
+    baselines: dict[str, Baseline],
+    peaks: dict[str, Peaks],
+    histories: dict[str, list[int]],
+    width: int,
+    color: bool,
+    timestamp: str,
+) -> str:
+    """Render two full seat meters so each M2 lane remains visually comparable."""
+    paint = Paint(color)
+    panels: list[str] = []
+    for lane in ("rogue-operator", "nimbusai-critical"):
+        panel = render_snapshot(
+            samples[lane],
+            baseline=baselines[lane],
+            peaks=peaks[lane],
+            history=histories[lane],
+            flow_schema=lane,
+            width=width,
+            color=color,
+            timestamp=timestamp,
+        )
+        panels.append(panel)
+
+    return "\n".join(
+        [
+            paint.title(f"APF TWO-LANE SEAT METER · {timestamp}"),
+            paint.dim("Rogue may queue here; critical activity must continue in its own lane."),
+            "",
+            panels[0],
+            "\n" + "═" * max(40, min(78, width)),
+            panels[1],
+        ]
+    )
+
+
 def _fetch_metrics(kubectl: str, context: str) -> str:
     command = [kubectl, "--context", context, "get", "--raw", "/metrics"]
     completed = subprocess.run(command, check=False, capture_output=True, text=True)
@@ -325,6 +362,11 @@ def _arguments() -> argparse.Namespace:
     parser.add_argument("--context", default="kind-kubeadv-core")
     parser.add_argument("--flow-schema", default="global-default")
     parser.add_argument("--priority-level", default="global-default")
+    parser.add_argument(
+        "--both",
+        action="store_true",
+        help="compare the M2 rogue-operator and nimbusai-critical APF lanes",
+    )
     parser.add_argument("--interval", type=float, default=1.0)
     parser.add_argument("--history", type=int, default=30)
     parser.add_argument("--once", action="store_true", help="print one snapshot and exit")
@@ -343,8 +385,11 @@ def main() -> int:
         return 2
 
     baseline: Baseline | None = None
+    both_baselines: dict[str, Baseline] = {}
     peaks = Peaks()
     history: list[int] = []
+    both_peaks: dict[str, Peaks] = {}
+    both_histories: dict[str, list[int]] = {}
     last_output = ""
     interactive = sys.stdout.isatty() and not args.once
     color = interactive and not args.no_color and os.environ.get("NO_COLOR") is None
@@ -352,6 +397,51 @@ def main() -> int:
     try:
         while True:
             metrics = _fetch_metrics(kubectl, args.context)
+            if args.both:
+                both_samples = {
+                    "rogue-operator": parse_metrics(
+                        metrics, "rogue-operator", "rogue-operator"
+                    ),
+                    "nimbusai-critical": parse_metrics(
+                        metrics, "nimbusai-critical", "nimbusai-critical"
+                    ),
+                }
+                for lane, sample in both_samples.items():
+                    if lane not in both_baselines:
+                        both_baselines[lane] = Baseline(
+                            dispatched_total=sample.dispatched_total,
+                            rejected_total=sample.rejected_total,
+                            estimated_seats_le_four=sample.estimated_seats_le_four,
+                            estimated_seats_sum=sample.estimated_seats_sum,
+                            estimated_seats_count=sample.estimated_seats_count,
+                        )
+                        both_peaks[lane] = Peaks()
+                        both_histories[lane] = []
+                    width_now = seat_width(sample)
+                    previous_peak = both_peaks[lane]
+                    both_peaks[lane] = Peaks(
+                        executing_seats=max(previous_peak.executing_seats, sample.executing_seats),
+                        seat_width=max(previous_peak.seat_width, width_now),
+                    )
+                    both_histories[lane].append(sample.executing_seats)
+                    both_histories[lane] = both_histories[lane][-max(1, args.history) :]
+                terminal_width = shutil.get_terminal_size((80, 24)).columns
+                last_output = render_both_lanes(
+                    both_samples,
+                    both_baselines,
+                    both_peaks,
+                    both_histories,
+                    terminal_width,
+                    color,
+                    datetime.now().strftime("%H:%M:%S"),
+                )
+                if interactive:
+                    print("\033[2J\033[H", end="")
+                print(last_output, flush=True)
+                if args.once:
+                    return 0
+                time.sleep(args.interval)
+                continue
             sample = parse_metrics(metrics, args.flow_schema, args.priority_level)
             if baseline is None:
                 baseline = Baseline(

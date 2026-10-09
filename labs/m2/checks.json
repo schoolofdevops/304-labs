@@ -74,10 +74,10 @@
     },
     {
       "id": "apf-seat-meter-renders",
-      "describe": "the APF terminal meter can read live metrics and calculate wide-request deltas without extra Python packages",
-      "run": "python3 labs/m2/apf-seat-meter.py --once --no-color",
+      "describe": "the APF terminal meter can compare the rogue and critical lanes from live metrics without extra Python packages",
+      "run": "python3 labs/m2/apf-seat-meter.py --both --once --no-color",
       "assert": {
-        "contains": "Wide requests (>4 seats)"
+        "contains": "APF LANE COMPARISON"
       },
       "weight": 2
     },
