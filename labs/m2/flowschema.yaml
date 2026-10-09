@@ -1,13 +1,60 @@
-# M2 — protect a critical ServiceAccount's API traffic with its own APF ward.
+# M2: isolate a noisy ServiceAccount from a critical ConfigMap read path.
 #
-# PriorityLevelConfiguration 'nimbusai-critical' reserves dedicated seats
-# (concurrency) and queues, so traffic classified into it cannot be starved by
-# a noisy flow in another priority level (e.g. an operator stuck in a LIST loop).
+# 'rogue-operator' deliberately has a small seat allocation. Its unpaginated
+# LIST storm queues here instead of consuming the seats reserved for the
+# critical controller. 'nimbusai-critical' has its own larger allocation.
+# lendablePercent 0 prevents either nominal allocation from being lent away.
 #
-# FlowSchema 'nimbusai-critical' classifies requests from the
-# nimbusai/nimbusai-critical ServiceAccount into that priority level.
-# matchingPrecedence 800 beats the built-in 'service-accounts' FlowSchema
-# (precedence 9000) — lower number wins.
+# Both FlowSchemas beat the built-in 'service-accounts' FlowSchema (precedence
+# 9000). APF classification does not grant RBAC permission.
+apiVersion: flowcontrol.apiserver.k8s.io/v1
+kind: PriorityLevelConfiguration
+metadata:
+  name: rogue-operator
+  labels:
+    course: 304-kubeadv
+    module: m2
+spec:
+  type: Limited
+  limited:
+    # Small on purpose: the 25-worker storm must queue in this lane.
+    nominalConcurrencyShares: 5
+    lendablePercent: 0
+    limitResponse:
+      type: Queue
+      queuing:
+        queues: 16
+        handSize: 4
+        queueLengthLimit: 50
+---
+apiVersion: flowcontrol.apiserver.k8s.io/v1
+kind: FlowSchema
+metadata:
+  name: rogue-operator
+  labels:
+    course: 304-kubeadv
+    module: m2
+spec:
+  priorityLevelConfiguration:
+    name: rogue-operator
+  matchingPrecedence: 700
+  distinguisherMethod:
+    type: ByUser
+  rules:
+    - subjects:
+        - kind: ServiceAccount
+          serviceAccount:
+            name: rogue-operator
+            namespace: apiload
+      resourceRules:
+        - verbs: ["get", "list"]
+          apiGroups: [""]
+          resources: ["configmaps"]
+          # `kubectl get ... -A` sends a request with Namespace="". In APF
+          # this is a cluster-scope *request*, even though ConfigMaps are a
+          # namespaced resource, so clusterScope must be true to classify it.
+          clusterScope: true
+---
 apiVersion: flowcontrol.apiserver.k8s.io/v1
 kind: PriorityLevelConfiguration
 metadata:
@@ -18,10 +65,9 @@ metadata:
 spec:
   type: Limited
   limited:
-    # Share of the server's total concurrency budget reserved for this level.
+    # Relative share of the server's fixed concurrency budget for this level.
     nominalConcurrencyShares: 30
-    # Keep the reserved seats for this level even when idle — this ward exists
-    # to be free during an incident, not to be lent out.
+    # Other levels cannot borrow this level's nominal seats while it is idle.
     lendablePercent: 0
     limitResponse:
       type: Queue
@@ -50,8 +96,8 @@ spec:
             name: nimbusai-critical
             namespace: nimbusai
       resourceRules:
-        - verbs: ["*"]
-          apiGroups: ["*"]
-          resources: ["*"]
-          clusterScope: true
-          namespaces: ["*"]
+        - verbs: ["get", "list"]
+          apiGroups: [""]
+          resources: ["configmaps"]
+          clusterScope: false
+          namespaces: ["nimbusai"]

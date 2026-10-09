@@ -46,6 +46,15 @@
       "weight": 2
     },
     {
+      "id": "rogue-flow-isolated",
+      "describe": "the noisy rogue operator has a separate constrained APF lane, so its LIST storm can queue without consuming the critical lane",
+      "run": "kubectl --context kind-kubeadv-core get flowschema rogue-operator -o jsonpath='{.spec.priorityLevelConfiguration.name}'",
+      "assert": {
+        "matches": "^rogue-operator$"
+      },
+      "weight": 3
+    },
+    {
       "id": "critical-sa-exists",
       "describe": "the protected ServiceAccount nimbusai-critical exists in the nimbusai namespace",
       "run": "kubectl --context kind-kubeadv-core -n nimbusai get serviceaccount nimbusai-critical -o jsonpath='{.metadata.name}'",

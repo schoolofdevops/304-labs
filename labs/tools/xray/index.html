@@ -680,12 +680,78 @@ var prevDep={};           // name -> {spec,gen,obs,ready,avail} for flash diffin
    This is the lesson itself, visible: LIST to get a resourceVersion, then WATCH
    from that version; reconnect on stream end; on 410 Gone, re-LIST. */
 function sleep(ms){return new Promise(function(r){setTimeout(r,ms)})}
+function oneAtATime(fn){
+  var busy=false;
+  return function(){
+    if(busy)return;
+    busy=true;
+    Promise.resolve().then(fn).catch(function(){}).then(function(){busy=false});
+  };
+}
 function setStream(key,st){S.streams[key]=st;renderWatchInd()}
 function delStream(key){delete S.streams[key];renderWatchInd()}
 
+/* Use WebSockets for long-lived streams when kubectl proxy supports upgrades.
+   This avoids exhausting the browser's shared HTTP/1.1 connection budget;
+   fall back to fetch streaming when the proxy refuses an upgrade. */
+var STREAM={ws:typeof WebSocket!=='undefined'};
+function streamLines(path,onOpen,onLine,ctl){
+  return STREAM.ws?wsLines(path,onOpen,onLine,ctl).catch(function(e){
+    if(!e||!e.wsUnavailable)throw e;
+    STREAM.ws=false;
+    return httpLines(path,onOpen,onLine,ctl);
+  }):httpLines(path,onOpen,onLine,ctl);
+}
+function wsLines(path,onOpen,onLine,ctl){
+  return new Promise(function(resolve,reject){
+    var ws=new WebSocket((location.protocol==='https:'?'wss://':'ws://')+location.host+path);
+    var opened=false,dec=new TextDecoder(),buf='',done=false;
+    ws.binaryType='arraybuffer';
+    function finish(err){
+      if(done)return;done=true;ctl.closeStream=null;
+      try{ws.close()}catch(e){}
+      err?reject(err):resolve();
+    }
+    ctl.closeStream=function(){finish()};
+    ws.onopen=function(){opened=true;onOpen(200)};
+    ws.onmessage=function(m){
+      buf+=(typeof m.data==='string'?m.data:dec.decode(m.data,{stream:true}))+'\n';
+      var nl;
+      try{while((nl=buf.indexOf('\n'))>=0){
+        var line=buf.slice(0,nl);buf=buf.slice(nl+1);
+        if(line.trim())onLine(line);
+      }}catch(e){finish(e)}
+    };
+    ws.onerror=function(){if(!opened)finish({wsUnavailable:true})};
+    ws.onclose=function(){opened?finish():finish({wsUnavailable:true})};
+  });
+}
+async function httpLines(path,onOpen,onLine,ctl){
+  ctl.ac=new AbortController();
+  var r=await fetch(path,{signal:ctl.ac.signal});
+  onOpen(r.status);
+  if(!r.ok)return;
+  var reader=r.body.getReader(),dec=new TextDecoder(),buf='';
+  for(;;){
+    var chunk=await reader.read();
+    if(chunk.done)return;
+    buf+=dec.decode(chunk.value,{stream:true});
+    var nl;
+    while((nl=buf.indexOf('\n'))>=0){
+      var line=buf.slice(0,nl);buf=buf.slice(nl+1);
+      if(line.trim())onLine(line);
+    }
+  }
+}
+
 function startWatch(cfg){ // {key,path,onList,onEvent}
-  var ctl={stopped:false,ac:null};
-  ctl.stop=function(){ctl.stopped=true;if(ctl.ac)ctl.ac.abort();delStream(cfg.key)};
+  var ctl={stopped:false,ac:null,closeStream:null};
+  ctl.stop=function(){
+    ctl.stopped=true;
+    if(ctl.ac)ctl.ac.abort();
+    if(ctl.closeStream)ctl.closeStream();
+    delStream(cfg.key);
+  };
   (async function run(){
     var rv=null;
     while(!ctl.stopped){
@@ -699,31 +765,26 @@ function startWatch(cfg){ // {key,path,onList,onEvent}
           rv=body.metadata.resourceVersion;
           cfg.onList(body.items||[]);
         }
-        var wr=await fetch(cfg.path+'?watch=1&allowWatchBookmarks=true&resourceVersion='+rv,
-                           {signal:ctl.ac.signal});
-        if(wr.status===410){rv=null;continue}
-        if(!wr.ok)throw new Error('watch HTTP '+wr.status);
-        setStream(cfg.key,'connected');
-        var reader=wr.body.getReader(),dec=new TextDecoder(),buf='';
-        for(;;){
-          var chunk=await reader.read();
-          if(chunk.done)break;
-          buf+=dec.decode(chunk.value,{stream:true});
-          var nl;
-          while((nl=buf.indexOf('\n'))>=0){
-            var line=buf.slice(0,nl);buf=buf.slice(nl+1);
-            if(!line.trim())continue;
+        var status=0,t0=Date.now();
+        await streamLines(cfg.path+'?watch=1&allowWatchBookmarks=true&resourceVersion='+rv,
+          function(st){
+            status=st;
+            if(st===410){rv=null;return}
+            if(st>=200&&st<300)setStream(cfg.key,'connected');
+          },
+          function(line){
             var ev=JSON.parse(line);
-            if(ev.type==='BOOKMARK'){rv=ev.object.metadata.resourceVersion;continue}
+            if(ev.type==='BOOKMARK'){rv=ev.object.metadata.resourceVersion;return}
             if(ev.type==='ERROR'){
               if(ev.object&&ev.object.code===410)rv=null; // 410 Gone → full re-list
               throw new Error('watch ERROR event');
             }
             rv=ev.object.metadata.resourceVersion;
             cfg.onEvent(ev.type,ev.object);
-          }
-        }
-        /* stream ended (server timeout) → loop reconnects from last rv */
+          },ctl);
+        if(status===410)continue;
+        if(status&&(status<200||status>=300))throw new Error('watch HTTP '+status);
+        if(Date.now()-t0<1000)throw new Error('watch closed immediately');
       }catch(e){
         if(ctl.stopped)return;
         setStream(cfg.key,'resync');
@@ -773,12 +834,12 @@ $('nsSel').addEventListener('change',function(){switchNs(this.value)});
    pods, events watches + the audit log follow) use 5, and the last slot must
    stay free for transient fetches (/metrics polls, probes). A namespace list
    every 15s is plenty. */
-function pollNamespaces(){
-  fetch('/api/v1/namespaces?limit=500').then(function(r){return r.json()}).then(function(b){
+var pollNamespaces=oneAtATime(function(){
+  return fetch('/api/v1/namespaces?limit=500').then(function(r){return r.json()}).then(function(b){
     S.namespaces=(b.items||[]).map(function(n){return n.metadata.name});
     renderNsSel();
   }).catch(function(){});
-}
+});
 pollNamespaces();
 setInterval(pollNamespaces,15000);
 
@@ -1290,23 +1351,16 @@ function auditStart(){ /* probe once, then follow */
 async function auditFollow(){
   while(AUD.on){
     try{
-      var r=await fetch('/api/v1/namespaces/kube-system/pods/'+AUD.pod+'/log?follow=true&tailLines=1');
-      if(!r.ok)throw new Error('log HTTP '+r.status);
-      var rd=r.body.getReader(),dec=new TextDecoder(),buf='';
-      for(;;){
-        var c=await rd.read();
-        if(c.done)break;
-        buf+=dec.decode(c.value,{stream:true});
-        var nl;
-        while((nl=buf.indexOf('\n'))>=0){
-          var line=buf.slice(0,nl).trim();buf=buf.slice(nl+1);
-          if(line[0]!=='{')continue;                 /* klog lines interleave on stderr */
+      await streamLines('/api/v1/namespaces/kube-system/pods/'+AUD.pod+'/log?follow=true&tailLines=1',
+        function(st){if(st<200||st>=300)throw new Error('log HTTP '+st)},
+        function(line){
+          line=line.trim();
+          if(line[0]!=='{')return;                   /* klog lines interleave on stderr */
           try{
             var o=JSON.parse(line);
             if(o.kind==='Event'&&/^audit\.k8s\.io\//.test(o.apiVersion||''))handleAudit(o);
           }catch(e){}
-        }
-      }
+        },{});
     }catch(e){}
     await sleep(2000);                               /* stream ended → re-follow */
   }
@@ -1318,8 +1372,8 @@ var APF={base:{},qmax:10,timer:null,polls:0};
 var PL_ORDER=['exempt','system','leader-election','node-high','workload-high','workload-low','global-default','catch-all'];
 function apfStart(){if(APF.timer)return;apfPoll();APF.timer=setInterval(apfPoll,2500)}
 function apfStop(){if(APF.timer){clearInterval(APF.timer);APF.timer=null}}
-function apfPoll(){
-  fetch('/metrics').then(function(r){
+var apfPoll=oneAtATime(function(){
+  return fetch('/metrics').then(function(r){
     if(!r.ok)throw new Error('HTTP '+r.status);
     return r.text();
   }).then(function(txt){
@@ -1338,7 +1392,7 @@ function apfPoll(){
   }).catch(function(){
     $('apfMeta').textContent='/metrics unreachable — is serve.sh running against your cluster?';
   });
-}
+});
 function renderApf(m){
   var host=$('apfRows'),pls={};
   [m.exec,m.q,m.rej,m.nom].forEach(function(o){Object.keys(o).forEach(function(k){pls[k]=1})});
@@ -1492,7 +1546,7 @@ function stRenderAlarm(){
     sub.textContent='';
   }
 }
-async function stTick(){
+var stTick=oneAtATime(async function(){
   ST.polls++;
   if(!ST.pod&&!ST.podErr)await stFindPod();
   if(!ST.pod){stHint(esc(ST.podErr||'etcd pod not found.'));return}
@@ -1582,7 +1636,7 @@ async function stTick(){
   catch(e){stSetVal('stRz','unreachable','false')}
   try{var z2=await fetch('/readyz/etcd-readiness');stSetVal('stRzR',z2.ok?'ok':'HTTP '+z2.status,z2.ok?'true':'false')}
   catch(e){stSetVal('stRzR','unreachable','false')}
-}
+});
 
 /* ==================================================================
    Scheduling Lens (M4)
@@ -1748,7 +1802,7 @@ async function scPollSchedMetrics(){
     SC.metricsOn=true;return m;
   }catch(e){SC.metricsOn=false;return null}
 }
-async function scTick(){
+var scTick=oneAtATime(async function(){
   SC.polls++;
   /* pending pods, cluster-wide */
   try{
@@ -1774,7 +1828,7 @@ async function scTick(){
       'API server pod proxy. <b>Queue depth</b> above is derived live from the cluster-wide Pending count, '+
       'which is the same signal <code>scheduler_pending_pods</code> reports.';
   }
-}
+});
 
 /* ==================================================================
    Extensions Lens (M5)
@@ -1810,7 +1864,7 @@ function extSpecSummary(spec){
   });
   return out.slice(0,5).join('  ');
 }
-async function extTick(){
+var extTick=oneAtATime(async function(){
   try{
     var r=await fetch('/apis/apiextensions.k8s.io/v1/customresourcedefinitions?limit=500');
     if(!r.ok){$('extCrdList').innerHTML='<div class="extEmpty">CRD list HTTP '+r.status+'</div>';return}
@@ -1842,7 +1896,7 @@ async function extTick(){
     await renderExtOwnership(crs);
     $('extCrdMeta')&&($('extCrdMeta').textContent='');
   }catch(e){$('extCrdList').innerHTML='<div class="extEmpty">'+esc(String(e))+'</div>'}
-}
+});
 function renderExtCrds(crds){
   var host=$('extCrdList');host.innerHTML='';
   if(!crds.length){host.innerHTML='<div class="extEmpty">— no CRDs installed.</div>';return}
@@ -1956,7 +2010,7 @@ function mSum(t,name){var re=new RegExp('^'+name+'(?:\\{[^}]*\\})? ([0-9.eE+-]+)
 function mByLabel(t,name,sub){var re=new RegExp('^'+name+'\\{([^}]*)\\} ([0-9.eE+-]+)$','gm'),m;while((m=re.exec(t))){if(m[1].indexOf(sub)>=0)return parseFloat(m[2])}return null}
 function objCounts(t){var re=/^apiserver_storage_objects\{resource="([^"]+)"[^}]*\} ([0-9.eE+-]+)$/gm,m,out=[];while((m=re.exec(t))){out.push({r:m[1],n:parseFloat(m[2])||0})}return out}
 function fmtN(n){return n==null?'—':n>=1000?n.toLocaleString():String(n)}
-async function scaleTick(){
+var scaleTick=oneAtATime(async function(){
   var t;
   try{var r=await fetch('/metrics');if(!r.ok){$('scaleObjList').innerHTML='<div style="color:var(--faint)">/metrics HTTP '+r.status+'</div>';return}t=await r.text()}
   catch(e){$('scaleObjList').innerHTML='<div style="color:var(--faint)">'+esc(String(e))+'</div>';return}
@@ -2008,7 +2062,7 @@ async function scaleTick(){
   if(watchers==null)watchers=mByLabel(t,'apiserver_longrunning_requests','verb="WATCH"');
   $('scWatch').textContent=watchers==null?'—':fmtN(Math.round(watchers));
   $('scaleMeta').textContent='sampled '+objs.length+' object kinds · /metrics every 3s';
-}
+});
 
 /* ---------- lens switching ---------- */
 var LENS_TITLE={recon:'· Reconciliation Lens',cp:'· Control-Plane Lens',storage:'· Storage Lens',sched:'· Scheduling Lens',ext:'· Extensions Lens',scale:'· Scale Lens'};
@@ -2046,7 +2100,7 @@ $('tabs').addEventListener('click',function(e){
 /* ------------------------------------------------------------------ boot */
 renderNsSel();
 startNsWatches();
-window.__xray={S:S,AUD:AUD,APF:APF,ST:ST,SC:SC,EXT:EXT,SCALE:SCALE,setLens:setLens,extTick:extTick,scaleTick:scaleTick};   /* test hook */
+window.__xray={S:S,STREAM:STREAM,AUD:AUD,APF:APF,ST:ST,SC:SC,EXT:EXT,SCALE:SCALE,setLens:setLens,extTick:extTick,scaleTick:scaleTick};   /* test hook */
 })();
 </script>
 </body>
